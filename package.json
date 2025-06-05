@@ -11,10 +11,18 @@
   "license": "ISC",
   "packageManager": "pnpm@7.27.1+sha512.22905e67eef5b2510d6ee397c1b57853acb138c7c4584be556e4faf82859d43f34a05d1e1f237887f85cd7752bcd55e95c8ddb7fbb0f7d15866fc4d892bbc950",
   "dependencies": {
+    "@raydium-io/raydium-sdk-v2": "0.1.138-alpha",
     "@solana/buffer-layout": "^4.0.1",
-    "@raydium-io/raydium-sdk": "1.3.1-beta.58",
+    "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
-    "bn.js": "^5.2.2"
+    "@types/big.js": "^6.2.2",
+    "@types/lodash": "^4.17.17",
+    "big.js": "^7.0.1",
+    "bn.js": "^5.2.2",
+    "decimal.js": "^10.5.0",
+    "decimal.js-light": "^2.5.1",
+    "lodash": "^4.17.21",
+    "toformat": "^2.0.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.6",

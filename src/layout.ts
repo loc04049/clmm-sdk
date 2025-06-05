@@ -1,4 +1,6 @@
-import { blob, bool, i128, i64, publicKey, s32, seq, struct, u128, u16, u32, u64, u8 } from "./marshmallow";
+import { blob, bool, i128, i64, publicKey, s32, seq, struct, u128, u16, u32, u64, u8 } from "@raydium-io/raydium-sdk-v2";
+import { TICK_ARRAY_SIZE } from "./utils/tick";
+import { EXTENSION_TICKARRAY_BITMAP_SIZE } from "./utils/tickarrayBitmap";
 
 export const RewardInfo = struct([
   u8("rewardState"),
@@ -60,3 +62,70 @@ export const PoolInfoLayout = struct([
 
   seq(u64(), 15 * 4 - 3, "padding"),
 ]);
+
+export const TickLayout = struct([
+  s32("tick"),
+  i128("liquidityNet"),
+  u128("liquidityGross"),
+  u128("feeGrowthOutsideX64A"),
+  u128("feeGrowthOutsideX64B"),
+  seq(u128(), 3, "rewardGrowthsOutsideX64"),
+
+  seq(u32(), 13, ""),
+]);
+
+export const TickArrayLayout = struct([
+  blob(8),
+  publicKey("poolId"),
+  s32("startTickIndex"),
+  seq(TickLayout, TICK_ARRAY_SIZE, "ticks"),
+  u8("initializedTickCount"),
+
+  seq(u8(), 115, ""),
+]);
+
+export const PositionRewardInfoLayout = struct([u128("growthInsideLastX64"), u64("rewardAmountOwed")]);
+
+
+export const PositionInfoLayout = struct([
+  blob(8),
+  u8("bump"),
+  publicKey("nftMint"),
+  publicKey("poolId"),
+
+  s32("tickLower"),
+  s32("tickUpper"),
+  u128("liquidity"),
+  u128("feeGrowthInsideLastX64A"),
+  u128("feeGrowthInsideLastX64B"),
+  u64("tokenFeesOwedA"),
+  u64("tokenFeesOwedB"),
+
+  seq(PositionRewardInfoLayout, 3, "rewardInfos"),
+
+  seq(u64(), 8, ""),
+]);
+
+export const TickArrayBitmapExtensionLayout = struct([
+  blob(8),
+  publicKey("poolId"),
+  seq(seq(u64(), 8), EXTENSION_TICKARRAY_BITMAP_SIZE, "positiveTickArrayBitmap"),
+  seq(seq(u64(), 8), EXTENSION_TICKARRAY_BITMAP_SIZE, "negativeTickArrayBitmap"),
+]);
+
+export type ClmmPositionLayout = ReturnType<typeof PositionInfoLayout.decode>;
+
+export const splAccountLayout = struct([
+  publicKey("mint"),
+  publicKey("owner"),
+  u64("amount"),
+  u32("delegateOption"),
+  publicKey("delegate"),
+  u8("state"),
+  u32("isNativeOption"),
+  u64("isNative"),
+  u64("delegatedAmount"),
+  u32("closeAuthorityOption"),
+  publicKey("closeAuthority"),
+]);
+
