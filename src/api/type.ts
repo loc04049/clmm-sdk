@@ -31,14 +31,14 @@ export type ExtensionsItem = {
 };
 
 export type ApiV3Token = {
-  chainId: number;
+  chainId: string;
   address: string;
   programId: string;
   logoURI: string;
   symbol: string;
   name: string;
   decimals: number;
-  tags: string[]; // "hasFreeze" | "hasTransferFee" | "token-2022" | "community" | "unknown" ..etc
+  // tags: string[]; // "hasFreeze" | "hasTransferFee" | "token-2022" | "community" | "unknown" ..etc
   extensions: ExtensionsItem;
   freezeAuthority?: string;
   mintAuthority?: string;

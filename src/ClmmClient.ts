@@ -1,9 +1,13 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { ClmmClientConfig, CreateConcentratedPool } from "./type";
 import { PoolInfoLayout } from "./layout";
 import { CLMM_PROGRAM_ID } from "./constants/programIds";
 import { BN } from "bn.js";
 import Decimal from "decimal.js";
+import { SqrtPriceMath } from "./utils/math";
+import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { getPdaMintExAccount } from "./utils/pda";
+import { ClmmInstrument } from "./instrument";
 
 export class ClmmClient {
   connection: Connection;
@@ -66,7 +70,8 @@ export class ClmmClient {
       txTipConfig,
       feePayer,
     } = props;
-    const txBuilder = this.createTxBuilder(feePayer);
+    // const txBuilder = this.createTxBuilder(feePayer);
+    const instructions: TransactionInstruction[] = [];
     const [mintA, mintB, initPrice] = new BN(new PublicKey(mint1.address).toBuffer()).gt(
       new BN(new PublicKey(mint2.address).toBuffer()),
     )
@@ -81,14 +86,14 @@ export class ClmmClient {
       fetchAccounts.push(getPdaMintExAccount(CLMM_PROGRAM_ID, new PublicKey(mintA.address)).publicKey);
     if (mintB.programId === TOKEN_2022_PROGRAM_ID.toBase58())
       fetchAccounts.push(getPdaMintExAccount(CLMM_PROGRAM_ID, new PublicKey(mintB.address)).publicKey);
-    const extMintRes = await this.scope.connection.getMultipleAccountsInfo(fetchAccounts);
+    const extMintRes = await this.connection.getMultipleAccountsInfo(fetchAccounts);
 
     extMintRes.forEach((r, idx) => {
       if (r) extendMintAccount.push(fetchAccounts[idx]);
     });
 
     const insInfo = await ClmmInstrument.createPoolInstructions({
-      connection: this.scope.connection,
+      connection: this.connection,
       programId: CLMM_PROGRAM_ID,
       owner,
       mintA,
@@ -99,67 +104,68 @@ export class ClmmClient {
       extendMintAccount,
     });
 
-    txBuilder.addInstruction(insInfo);
-    txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    txBuilder.addTipInstruction(txTipConfig);
+    instructions.push(...insInfo.instructions);
 
-    return txBuilder.versionBuild<{
-      mockPoolInfo: ApiV3PoolInfoConcentratedItem;
-      address: ClmmKeys;
-      forerunCreate?: boolean;
-    }>({
-      txVersion,
-      extInfo: {
-        address: {
-          ...insInfo.address,
-          observationId: insInfo.address.observationId.toBase58(),
-          exBitmapAccount: insInfo.address.exBitmapAccount.toBase58(),
-          programId: CLMM_PROGRAM_ID.toString(),
-          id: insInfo.address.poolId.toString(),
-          mintA,
-          mintB,
-          openTime: "0",
-          vault: { A: insInfo.address.mintAVault.toString(), B: insInfo.address.mintBVault.toString() },
-          rewardInfos: [],
-          config: {
-            id: ammConfig.id.toString(),
-            index: ammConfig.index,
-            protocolFeeRate: ammConfig.protocolFeeRate,
-            tradeFeeRate: ammConfig.tradeFeeRate,
-            tickSpacing: ammConfig.tickSpacing,
-            fundFeeRate: ammConfig.fundFeeRate,
-            description: ammConfig.description,
-            defaultRange: 0,
-            defaultRangePoint: [],
-          },
-        },
-        mockPoolInfo: {
-          type: "Concentrated",
-          rewardDefaultPoolInfos: "Clmm",
-          id: insInfo.address.poolId.toString(),
-          mintA,
-          mintB,
-          feeRate: ammConfig.tradeFeeRate,
-          openTime: "0",
-          programId: CLMM_PROGRAM_ID.toString(),
-          price: initPrice.toNumber(),
-          config: {
-            id: ammConfig.id.toString(),
-            index: ammConfig.index,
-            protocolFeeRate: ammConfig.protocolFeeRate,
-            tradeFeeRate: ammConfig.tradeFeeRate,
-            tickSpacing: ammConfig.tickSpacing,
-            fundFeeRate: ammConfig.fundFeeRate,
-            description: ammConfig.description,
-            defaultRange: 0,
-            defaultRangePoint: [],
-          },
-          burnPercent: 0,
-          ...mockV3CreatePoolInfo,
-        },
-        forerunCreate,
-      },
-    })
+
+    return instructions
+
+    // return txBuilder.versionBuild<{
+    //   mockPoolInfo: ApiV3PoolInfoConcentratedItem;
+    //   address: ClmmKeys;
+    //   forerunCreate?: boolean;
+    // }>({
+    //   txVersion,
+    //   extInfo: {
+    //     address: {
+    //       ...insInfo.address,
+    //       observationId: insInfo.address.observationId.toBase58(),
+    //       exBitmapAccount: insInfo.address.exBitmapAccount.toBase58(),
+    //       programId: CLMM_PROGRAM_ID.toString(),
+    //       id: insInfo.address.poolId.toString(),
+    //       mintA,
+    //       mintB,
+    //       openTime: "0",
+    //       vault: { A: insInfo.address.mintAVault.toString(), B: insInfo.address.mintBVault.toString() },
+    //       rewardInfos: [],
+    //       config: {
+    //         id: ammConfig.id.toString(),
+    //         index: ammConfig.index,
+    //         protocolFeeRate: ammConfig.protocolFeeRate,
+    //         tradeFeeRate: ammConfig.tradeFeeRate,
+    //         tickSpacing: ammConfig.tickSpacing,
+    //         fundFeeRate: ammConfig.fundFeeRate,
+    //         description: ammConfig.description,
+    //         defaultRange: 0,
+    //         defaultRangePoint: [],
+    //       },
+    //     },
+    //     mockPoolInfo: {
+    //       type: "Concentrated",
+    //       rewardDefaultPoolInfos: "Clmm",
+    //       id: insInfo.address.poolId.toString(),
+    //       mintA,
+    //       mintB,
+    //       feeRate: ammConfig.tradeFeeRate,
+    //       openTime: "0",
+    //       programId: CLMM_PROGRAM_ID.toString(),
+    //       price: initPrice.toNumber(),
+    //       config: {
+    //         id: ammConfig.id.toString(),
+    //         index: ammConfig.index,
+    //         protocolFeeRate: ammConfig.protocolFeeRate,
+    //         tradeFeeRate: ammConfig.tradeFeeRate,
+    //         tickSpacing: ammConfig.tickSpacing,
+    //         fundFeeRate: ammConfig.fundFeeRate,
+    //         description: ammConfig.description,
+    //         defaultRange: 0,
+    //         defaultRangePoint: [],
+    //       },
+    //       burnPercent: 0,
+    //       ...mockV3CreatePoolInfo,
+    //     },
+    //     forerunCreate,
+    //   },
+    // })
   }
 }
 

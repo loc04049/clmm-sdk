@@ -1,4 +1,4 @@
-import { EpochInfo, PublicKey } from "@solana/web3.js";
+import { EpochInfo, Keypair, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import Decimal from "decimal.js";
 import { ClmmPositionLayout, PoolInfoLayout } from "./layout";
@@ -8,7 +8,13 @@ import { ApiV3PoolInfoConcentratedItem, ApiV3Token } from "./api";
 import { splAccountLayout } from "./layout";
 
 
-
+export interface ReturnTypeMakeInstructions<T = Record<string, PublicKey>> {
+  signers: (Signer | Keypair)[];
+  instructions: TransactionInstruction[];
+  instructionTypes: string[];
+  address: T;
+  lookupTableAddress: string[];
+}
 export interface ClmmClientConfig {
   rpc: string;
 }
@@ -25,7 +31,7 @@ export interface ClmmConfigInfo {
 }
 
 export interface CreateConcentratedPool {
-  owner?: PublicKey;
+  owner: PublicKey;
   mint1: ApiV3Token;
   mint2: ApiV3Token;
   ammConfig: ClmmConfigInfo;
