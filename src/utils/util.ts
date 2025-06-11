@@ -1,4 +1,5 @@
-import { PublicKey } from "@solana/web3.js";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 export function u16ToBytes(num: number): Uint8Array {
   const arr = new ArrayBuffer(2);
@@ -79,3 +80,62 @@ export function findProgramAddress(
   const [publicKey, nonce] = PublicKey.findProgramAddressSync(seeds, programId);
   return { publicKey, nonce };
 }
+
+export const getOrCreateATAWithExtension = async ({
+  payer,
+  connection,
+  owner,
+  mint,
+  instruction,
+  programId = TOKEN_PROGRAM_ID,
+  associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID,
+  allowOwnerOffCurve = false,
+}: {
+  connection: Connection;
+  payer: PublicKey;
+  owner: PublicKey;
+  mint: PublicKey;
+  instruction: TransactionInstruction[];
+  programId?: PublicKey;
+  associatedTokenProgramId?: PublicKey;
+  allowOwnerOffCurve?: boolean;
+}) => {
+  const ata = getAssociatedTokenAddressSync(
+    mint,
+    owner,
+    allowOwnerOffCurve,
+    programId,
+    associatedTokenProgramId,
+  );
+
+  try {
+    await getAccount(connection, ata, 'confirmed', programId);
+    return ata;
+  } catch (e) {
+    const ix = createAssociatedTokenAccountInstruction(
+      payer,
+      ata,
+      owner,
+      mint,
+      programId,
+      associatedTokenProgramId,
+    );
+    instruction.push(ix);
+    return ata;
+  }
+};
+
+export function getATAAddress(
+  owner: PublicKey,
+  mint: PublicKey,
+  programId?: PublicKey,
+): {
+  publicKey: PublicKey;
+  nonce: number;
+} {
+  return findProgramAddress(
+    [owner.toBuffer(), (programId ?? TOKEN_PROGRAM_ID).toBuffer(), mint.toBuffer()],
+    new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"),
+  );
+}
+

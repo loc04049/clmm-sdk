@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { ClmmClientConfig, CreateConcentratedPool } from "./type";
+import { ClmmClientConfig, CreateConcentratedPool, OpenPositionFromBase } from "./type";
 import { PoolInfoLayout } from "./layout";
 import { CLMM_PROGRAM_ID } from "./constants/programIds";
 import { BN } from "bn.js";
@@ -8,6 +8,8 @@ import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { getPdaMintExAccount } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
+import { WSOLMint } from "./constants";
+import { getOrCreateATAWithExtension } from "./utils/util";
 
 export class ClmmClient {
   connection: Connection;
@@ -20,6 +22,8 @@ export class ClmmClient {
       },
     });
   }
+
+
 
   public async getClmmPoolInfo(poolId: string) {
     const poolPubkey = new PublicKey(poolId);
@@ -68,10 +72,7 @@ export class ClmmClient {
       forerunCreate,
       getObserveState,
       txTipConfig,
-      feePayer,
     } = props;
-    // const txBuilder = this.createTxBuilder(feePayer);
-    const instructions: TransactionInstruction[] = [];
     const [mintA, mintB, initPrice] = new BN(new PublicKey(mint1.address).toBuffer()).gt(
       new BN(new PublicKey(mint2.address).toBuffer()),
     )
@@ -92,6 +93,9 @@ export class ClmmClient {
       if (r) extendMintAccount.push(fetchAccounts[idx]);
     });
 
+    console.log("🚀 ~ ClmmClient ~ mintA:", mintA.address)
+
+
     const insInfo = await ClmmInstrument.createPoolInstructions({
       connection: this.connection,
       programId: CLMM_PROGRAM_ID,
@@ -103,69 +107,75 @@ export class ClmmClient {
       forerunCreate: !getObserveState && forerunCreate,
       extendMintAccount,
     });
+    return insInfo
+
+  }
+
+  public async openPositionFromBase({
+    payer,
+    poolInfo,
+    poolKeys,
+    tickLower,
+    tickUpper,
+    base,
+    baseAmount,
+    otherAmountMax,
+    nft2022,
+    withMetadata = "create",
+    getEphemeralSigners,
+    computeBudgetConfig,
+    txTipConfig,
+  }: OpenPositionFromBase) {
+
+    // this.scope.checkOwner();
+    const instructions: TransactionInstruction[] = [];
+
+    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintA.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintA.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintB.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintB.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const insInfo = await ClmmInstrument.openPositionFromBaseInstructions({
+      poolInfo,
+      poolKeys,
+      ownerInfo: {
+        feePayer: payer,
+        wallet: payer,
+        tokenAccountA: ownerTokenAccountA!,
+        tokenAccountB: ownerTokenAccountB!,
+      },
+      tickLower,
+      tickUpper,
+      base,
+      baseAmount,
+      otherAmountMax,
+      withMetadata,
+      getEphemeralSigners,
+      nft2022,
+    });
+
+    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
+    // txBuilder.addTipInstruction(txTipConfig);
 
     instructions.push(...insInfo.instructions);
 
+    return { instructions, signers: insInfo.signers }
 
-    return instructions
-
-    // return txBuilder.versionBuild<{
-    //   mockPoolInfo: ApiV3PoolInfoConcentratedItem;
-    //   address: ClmmKeys;
-    //   forerunCreate?: boolean;
-    // }>({
-    //   txVersion,
-    //   extInfo: {
-    //     address: {
-    //       ...insInfo.address,
-    //       observationId: insInfo.address.observationId.toBase58(),
-    //       exBitmapAccount: insInfo.address.exBitmapAccount.toBase58(),
-    //       programId: CLMM_PROGRAM_ID.toString(),
-    //       id: insInfo.address.poolId.toString(),
-    //       mintA,
-    //       mintB,
-    //       openTime: "0",
-    //       vault: { A: insInfo.address.mintAVault.toString(), B: insInfo.address.mintBVault.toString() },
-    //       rewardInfos: [],
-    //       config: {
-    //         id: ammConfig.id.toString(),
-    //         index: ammConfig.index,
-    //         protocolFeeRate: ammConfig.protocolFeeRate,
-    //         tradeFeeRate: ammConfig.tradeFeeRate,
-    //         tickSpacing: ammConfig.tickSpacing,
-    //         fundFeeRate: ammConfig.fundFeeRate,
-    //         description: ammConfig.description,
-    //         defaultRange: 0,
-    //         defaultRangePoint: [],
-    //       },
-    //     },
-    //     mockPoolInfo: {
-    //       type: "Concentrated",
-    //       rewardDefaultPoolInfos: "Clmm",
-    //       id: insInfo.address.poolId.toString(),
-    //       mintA,
-    //       mintB,
-    //       feeRate: ammConfig.tradeFeeRate,
-    //       openTime: "0",
-    //       programId: CLMM_PROGRAM_ID.toString(),
-    //       price: initPrice.toNumber(),
-    //       config: {
-    //         id: ammConfig.id.toString(),
-    //         index: ammConfig.index,
-    //         protocolFeeRate: ammConfig.protocolFeeRate,
-    //         tradeFeeRate: ammConfig.tradeFeeRate,
-    //         tickSpacing: ammConfig.tickSpacing,
-    //         fundFeeRate: ammConfig.fundFeeRate,
-    //         description: ammConfig.description,
-    //         defaultRange: 0,
-    //         defaultRangePoint: [],
-    //       },
-    //       burnPercent: 0,
-    //       ...mockV3CreatePoolInfo,
-    //     },
-    //     forerunCreate,
-    //   },
-    // })
   }
 }
 

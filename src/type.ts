@@ -4,7 +4,7 @@ import Decimal from "decimal.js";
 import { ClmmPositionLayout, PoolInfoLayout } from "./layout";
 import { GetStructureSchema, Percent, Price, TokenAmount, TransferAmountFee } from "@raydium-io/raydium-sdk-v2";
 import { TickArray } from "./utils/tick";
-import { ApiV3PoolInfoConcentratedItem, ApiV3Token } from "./api";
+import { ApiClmmConfigV3, ApiV3PoolInfoConcentratedItem, ApiV3Token } from "./api";
 import { splAccountLayout } from "./layout";
 
 
@@ -40,7 +40,6 @@ export interface CreateConcentratedPool {
   txTipConfig?: TxTipConfig;
   forerunCreate?: boolean;
   getObserveState?: boolean;
-  feePayer?: PublicKey;
 }
 
 
@@ -329,3 +328,37 @@ export interface TokenAccountRaw {
 
 export type SplAccountLayout = typeof splAccountLayout;
 export type SplAccount = GetStructureSchema<SplAccountLayout>;
+
+export interface OpenPositionFromBase {
+  payer: PublicKey
+  poolInfo: PoolInfoConcentratedItem;
+  poolKeys: ClmmKeys;
+  tickLower: number;
+  tickUpper: number;
+
+  base: "MintA" | "MintB";
+  baseAmount: BN;
+  otherAmountMax: BN;
+
+  nft2022?: boolean;
+  withMetadata?: "create" | "no-create";
+  getEphemeralSigners?: (k: number) => any;
+  computeBudgetConfig?: ComputeBudgetConfig;
+  txTipConfig?: TxTipConfig;
+}
+
+export type PoolInfoConcentratedItem = {
+  programId: string;
+  id: string;
+  mintA: ApiV3Token;
+  mintB: ApiV3Token;
+  config: {
+    tickSpacing: number;
+  }
+}
+
+export type ClmmKeys = {
+  lookupTableAccount?: string;
+  vault: { A: string; B: string };
+};
+

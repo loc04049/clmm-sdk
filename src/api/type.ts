@@ -39,7 +39,7 @@ export type ApiV3Token = {
   name: string;
   decimals: number;
   // tags: string[]; // "hasFreeze" | "hasTransferFee" | "token-2022" | "community" | "unknown" ..etc
-  extensions: ExtensionsItem;
+  // extensions: ExtensionsItem;
   freezeAuthority?: string;
   mintAuthority?: string;
 };
@@ -98,4 +98,20 @@ export interface ApiClmmConfigV3 {
   description: string;
   defaultRange: number;
   defaultRangePoint: number[];
+}
+
+
+interface Base {
+  programId: string;
+  id: string;
+  mintA: ApiV3Token;
+  mintB: ApiV3Token;
+  lookupTableAccount?: string;
+  openTime: string;
+  vault: { A: string; B: string };
+}
+
+export interface ClmmRewardType {
+  mint: ApiV3Token;
+  vault: string;
 }

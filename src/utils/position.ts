@@ -246,25 +246,27 @@ export class PositionUtils {
     );
     const sqrtPriceX64A = SqrtPriceMath.getSqrtPriceX64FromTick(ownerPosition.tickLower);
     const sqrtPriceX64B = SqrtPriceMath.getSqrtPriceX64FromTick(ownerPosition.tickUpper);
+    const feeConfigMintA = undefined // poolInfo.mintA.extensions?.feeConfig
+    const feeConfigMintB = undefined // poolInfo.mintB.extensions?.feeConfig
 
     const coefficientRe = add ? 1 + slippage : 1 - slippage;
 
     const amounts = LiquidityMath.getAmountsFromLiquidity(sqrtPriceX64, sqrtPriceX64A, sqrtPriceX64B, liquidity, add);
 
     const [amountA, amountB] = [
-      getTransferAmountFeeV2(amounts.amountA, poolInfo.mintA.extensions?.feeConfig, epochInfo, true),
-      getTransferAmountFeeV2(amounts.amountB, poolInfo.mintB.extensions?.feeConfig, epochInfo, true),
+      getTransferAmountFeeV2(amounts.amountA, feeConfigMintA, epochInfo, true),
+      getTransferAmountFeeV2(amounts.amountB, feeConfigMintB, epochInfo, true),
     ];
     const [amountSlippageA, amountSlippageB] = [
       getTransferAmountFeeV2(
         new BN(new Decimal(amounts.amountA.toString()).mul(coefficientRe).toFixed(0)),
-        poolInfo.mintA.extensions?.feeConfig,
+        feeConfigMintA,
         epochInfo,
         true,
       ),
       getTransferAmountFeeV2(
         new BN(new Decimal(amounts.amountB.toString()).mul(coefficientRe).toFixed(0)),
-        poolInfo.mintB.extensions?.feeConfig,
+        feeConfigMintB,
         epochInfo,
         true,
       ),
