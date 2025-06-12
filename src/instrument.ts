@@ -505,7 +505,7 @@ export class ClmmInstrument {
     amountMaxB,
     nft2022,
   }: {
-    poolInfo: ApiV3PoolInfoConcentratedItem;
+    poolInfo: PoolInfoConcentratedItem;
     poolKeys: ClmmKeys;
     ownerPosition: ClmmPositionLayout;
 

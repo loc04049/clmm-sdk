@@ -6,7 +6,7 @@ import nacl from 'tweetnacl';
 
 
 export function getLocalWallet() {
-  const privateKey = "2FPQzKf1ZAQernWJDcCyEZqeWgqNtcKZodp2VedpMswBiFU7iym2qwj17AZ26XCS9sahUtFpx7bz1nFCzBoz6QDP";
+  const privateKey = "5V7Lf7wKtN2xjsKbCnJa3E9Wed8prWqcXpTmMEgHhJJuMM2QV8UsRRu8T59RwvM2VDCEC6fc6pJXjhePV7yNvP5N";
 
   const secretKey = bs58.decode(privateKey); // Uint8Array
   const keypair = Keypair.fromSecretKey(secretKey);

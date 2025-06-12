@@ -1,6 +1,6 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { ClmmClientConfig, CreateConcentratedPool, OpenPositionFromBase } from "./type";
-import { PoolInfoLayout } from "./layout";
+import { ClmmClientConfig, CreateConcentratedPool, IncreasePositionFromLiquidity, OpenPositionFromBase } from "./type";
+import { PoolInfoLayout, PositionInfoLayout } from "./layout";
 import { CLMM_PROGRAM_ID } from "./constants/programIds";
 import { BN } from "bn.js";
 import Decimal from "decimal.js";
@@ -23,6 +23,16 @@ export class ClmmClient {
     });
   }
 
+
+  public async getPositionInfo(poolId: string) {
+    const poolPubkey = new PublicKey(poolId);
+    const accountInfo = await this.connection.getAccountInfo(poolPubkey);
+    if (!accountInfo) {
+      throw new Error('Pool not found on-chain');
+    }
+    const positionInfo = PositionInfoLayout.decode(accountInfo.data);
+    return positionInfo
+  }
 
 
   public async getClmmPoolInfo(poolId: string) {
@@ -174,8 +184,71 @@ export class ClmmClient {
 
     instructions.push(...insInfo.instructions);
 
-    return { instructions, signers: insInfo.signers }
+    return { ...insInfo, instructions }
+  }
 
+  public async increasePositionFromLiquidity(
+    props: IncreasePositionFromLiquidity,
+  ) {
+    const {
+      payer,
+      poolInfo,
+      poolKeys,
+      ownerPosition,
+      amountMaxA,
+      amountMaxB,
+      liquidity,
+      computeBudgetConfig,
+      txTipConfig,
+    } = props;
+
+    const instructions: TransactionInstruction[] = [];
+
+    // let ownerTokenAccountA: PublicKey | undefined = undefined;
+    // let ownerTokenAccountB: PublicKey | undefined = undefined;
+
+    // const mintAUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintA.address === WSOLMint.toString();
+    // const mintBUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintB.address === WSOLMint.toString();
+
+    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintA.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintA.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintB.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintB.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const ins = ClmmInstrument.increasePositionFromLiquidityInstructions({
+      poolInfo,
+      poolKeys,
+      ownerPosition,
+      ownerInfo: {
+        wallet: payer,
+        tokenAccountA: ownerTokenAccountA!,
+        tokenAccountB: ownerTokenAccountB!,
+      },
+      liquidity,
+      amountMaxA,
+      amountMaxB,
+      nft2022: (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(TOKEN_2022_PROGRAM_ID),
+    });
+    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
+    // txBuilder.addTipInstruction(txTipConfig);
+    instructions.push(...ins.instructions);
+
+    return { ...ins, instructions }
   }
 }
 

@@ -362,3 +362,19 @@ export type ClmmKeys = {
   vault: { A: string; B: string };
 };
 
+export interface IncreasePositionFromLiquidity {
+  payer: PublicKey
+  poolInfo: PoolInfoConcentratedItem;
+  poolKeys: ClmmKeys;
+  ownerPosition: ClmmPositionLayout;
+  // ownerInfo: {
+  //   useSOLBalance?: boolean;
+  // };
+  amountMaxA: BN;
+  amountMaxB: BN;
+
+  liquidity: BN;
+  computeBudgetConfig?: ComputeBudgetConfig;
+  txTipConfig?: TxTipConfig;
+}
+
