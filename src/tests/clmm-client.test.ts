@@ -8,7 +8,7 @@ import Decimal from 'decimal.js';
 import { aw } from '@raydium-io/raydium-sdk-v2/lib/api-7daf490d';
 import { BN } from 'bn.js';
 import { TickUtils } from '../utils/tick';
-jest.setTimeout(30000);
+jest.setTimeout(300000);
 describe('ClmmClient', () => {
   const client = new ClmmClient({ rpc: 'https://api.devnet.solana.com' })
   const connection = client.connection;
@@ -32,8 +32,8 @@ describe('ClmmClient', () => {
     // console.log("🚀 ~ it ~ test:", test.publicKey.toString())
 
     const mint1 = {
-      address: '5eUSGeHZh61sza5bXbSxwbthD6L3iozbd5S6ZHmdVQ1e',
-      // address: inputMint.publicKey.toString(),
+      // address: '84L2XDrnuKYebpdp1fBaoPL1rQPkDJDsrnupMeprtafV',
+      address: inputMint.publicKey.toString(),
       decimals: 6,
       symbol: 'INPUT',
       name: 'Input Token',
@@ -43,8 +43,8 @@ describe('ClmmClient', () => {
     }
 
     const mint2 = {
-      address: 'EQuh5CnK5y3z56EJ4jDMH41wkgGGidFSBPiZttyqGGxw',
-      // address: outputMint.publicKey.toString(),
+      // address: '5gWHaiP46p3W6E2p4MKb3ZGVN2routj2XXLpu9xeVwbd',
+      address: outputMint.publicKey.toString(),
       decimals: 6,
       symbol: 'OUTPUT',
       name: 'Output Token',
@@ -54,33 +54,36 @@ describe('ClmmClient', () => {
     }
 
 
-    // // await createSplToken({
-    // //   connection,
-    // //   initialAmount: BigInt(1_000_000_000_000),
-    // //   mint: inputMint,
-    // //   payer: defaultAccount,
-    // //   decimals: 6,
-    // // });
+    await createSplToken({
+      connection,
+      initialAmount: BigInt(1_000_000_000_000),
+      mint: inputMint,
+      payer: defaultAccount,
+      decimals: 6,
+    });
 
 
-    // // await createSplToken({
-    // //   connection,
-    // //   initialAmount: BigInt(1_000_000_000_000),
-    // //   mint: outputMint,
-    // //   payer: defaultAccount,
-    // //   decimals: 6,
-    // // });
+    await createSplToken({
+      connection,
+      initialAmount: BigInt(1_000_000_000_000),
+      mint: outputMint,
+      payer: defaultAccount,
+      decimals: 6,
+    });
+
+    const tickSpacing = 60
 
     const insCreatePoolInfo = await client.createPool({
       owner: defaultAccount.publicKey,
       mint1,
       mint2,
       ammConfig: {
-        id: new PublicKey('8pQZVCNSs3XZtzP1RHFwrt4hG9UrnFgQs9sSScnKFR6t'),
+        // id: new PublicKey('8pQZVCNSs3XZtzP1RHFwrt4hG9UrnFgQs9sSScnKFR6t'),
+        id: new PublicKey('B9H7TR8PSjJT7nuW2tuPkFC63z7drtMZ4LoCtD7PrCN1'),
         index: 0,
         protocolFeeRate: 0.003,
         tradeFeeRate: 0.0005,
-        tickSpacing: 64,
+        tickSpacing,
         fundFeeRate: 0.0001,
         fundOwner: 'FUND_OWNER_ADDRESS',
         description: 'Test AMM Config'
@@ -101,24 +104,21 @@ describe('ClmmClient', () => {
         mintA: address.mintA,
         mintB: address.mintB,
         config: {
-          tickSpacing: 64,
+          tickSpacing,
         }
       },
       poolKeys: {
         vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() }
       },
-      tickLower: TickUtils.getTickLowerUpper(1, 64),
-      tickUpper: TickUtils.getTickLowerUpper(3, 64),
+      tickLower: TickUtils.getTickLowerUpper(1, tickSpacing),
+      tickUpper: TickUtils.getTickLowerUpper(3, tickSpacing),
 
       base: "MintA",
       baseAmount: new BN(1000000),
       otherAmountMax: new BN(1000000000000),
       nft2022: true
     })
-    console.log("🚀 ~ it ~ metadataAccount:", insOpenPositionFromBase.address.metadataAccount.toString())
-    console.log("🚀 ~ it ~ nftMint:", insOpenPositionFromBase.address.nftMint.toString())
     console.log("🚀 ~ it ~ personalPosition:", insOpenPositionFromBase.address.personalPosition.toString())
-    console.log("🚀 ~ it ~ protocolPosition:", insOpenPositionFromBase.address.protocolPosition.toString())
 
 
     const transaction = new Transaction().add(...instructions);
@@ -131,8 +131,9 @@ describe('ClmmClient', () => {
 
     await connection.confirmTransaction(hash, 'finalized');
 
+    // add pool
 
-    // const positionInfo = await client.getPositionInfo('NV1QfYWn9uzdisaGrHyQEFCZwpXtUWWYUbAV6EyQQzn')
+    const positionInfo = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
     // console.log("🚀 ~ it ~ positionInfo:", {
     //   nft: positionInfo.nftMint.toString(),
     //   poolId: positionInfo.poolId.toString(),
@@ -145,27 +146,37 @@ describe('ClmmClient', () => {
     //   feeGrowthInsideB: positionInfo.tokenFeesOwedB.toString(),
     // })
 
-    // console.log("🚀 ~ it ~ positionInfo:", positionInfo)
 
-    // const insAddPoolInfo = await client.increasePositionFromLiquidity({
-    //   payer: defaultAccount.publicKey,
-    //   poolInfo: {
-    //     programId: CLMM_PROGRAM_ID.toString(),
-    //     id: address.poolId.toString(),
-    //     mintA: address.mintA,
-    //     mintB: address.mintB,
-    //     config: {
-    //       tickSpacing: 60,
-    //     }
-    //   },
-    //   poolKeys: {
-    //     vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() }
-    //   },
-    //   ownerPosition: insOpenPositionFromBase.position,
-    //   liquidity: new BN(1000000),
-    //   amountMaxA: new BN(10000000000000000000000),
-    //   amountMaxB: new BN(10000000000000000000000),
-    // })
+    const insAddPoolInfo = await client.increasePositionFromLiquidity({
+      payer: defaultAccount.publicKey,
+      poolInfo: {
+        programId: CLMM_PROGRAM_ID.toString(),
+        id: address.poolId.toString(),
+        mintA: address.mintA,
+        mintB: address.mintB,
+        config: {
+          tickSpacing,
+        }
+      },
+      poolKeys: {
+        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() }
+      },
+      ownerPosition: positionInfo,
+      liquidity: new BN(1),
+      amountMaxA: new BN(1000000000),
+      amountMaxB: new BN(1000000000),
+    })
+
+    const transactionAddLiquidity = new Transaction().add(...insAddPoolInfo.instructions);
+    const hashAddLiquidity = await connection.sendTransaction(transactionAddLiquidity, [defaultAccount], {
+      skipPreflight: true
+    });
+    console.log("🚀 ~ it ~ hashAddLiquidity:", hashAddLiquidity)
+
+    await connection.confirmTransaction(hashAddLiquidity, 'finalized');
+
+    // remove liquidity
+
 
 
   })
