@@ -1,8 +1,7 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { ClmmClientConfig, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase } from "./type";
-import { PoolInfoLayout, PositionInfoLayout } from "./layout";
+import { ClmmClientConfig, ClmmKeys, ComputeBudgetConfig, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, TxTipConfig } from "./type";
+import { ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
 import { CLMM_PROGRAM_ID } from "./constants/programIds";
-import { BN } from "bn.js";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
@@ -10,6 +9,8 @@ import { getPdaMintExAccount } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
 import { WSOLMint } from "./constants";
 import { getOrCreateATAWithExtension } from "./utils/util";
+import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
+import BN from "bn.js";
 
 export class ClmmClient {
   connection: Connection;
@@ -371,11 +372,125 @@ export class ClmmClient {
       instructions,
       address: extInfo
     }
+  }
+
+  public async closePosition({
+    poolInfo,
+    poolKeys,
+    ownerPosition,
+    computeBudgetConfig,
+    txTipConfig,
+    payer,
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    ownerPosition: ClmmPositionLayout;
+    computeBudgetConfig?: ComputeBudgetConfig;
+    txTipConfig?: TxTipConfig;
+    feePayer?: PublicKey;
+    payer: PublicKey;
+  }) {
+    const ins = ClmmInstrument.closePositionInstructions({
+      poolInfo,
+      poolKeys,
+      ownerInfo: { wallet: payer },
+      ownerPosition,
+      nft2022: (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(TOKEN_2022_PROGRAM_ID),
+    });
+    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
+    // txBuilder.addTipInstruction(txTipConfig);
+    return ins
+  }
+
+  public async swap({
+    poolInfo,
+    poolKeys,
+    inputMint,
+    amountIn,
+    amountOutMin,
+    priceLimit,
+    observationId,
+    // ownerInfo,
+    remainingAccounts,
+    computeBudgetConfig,
+    txTipConfig,
+    payer,
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    inputMint: string | PublicKey;
+    amountIn: BN;
+    amountOutMin: BN;
+    priceLimit?: Decimal;
+    observationId: PublicKey;
+    // ownerInfo: {
+    //   useSOLBalance?: boolean;
+    //   feePayer?: PublicKey;
+    // };
+    remainingAccounts: PublicKey[];
+    computeBudgetConfig?: ComputeBudgetConfig;
+    txTipConfig?: TxTipConfig;
+    payer: PublicKey;
+  }) {
+
+    const instructions: TransactionInstruction[] = [];
+    const baseIn = inputMint.toString() === poolInfo.mintA.address;
+    // const mintAUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintA.address === WSOLMint.toBase58();
+    // const mintBUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintB.address === WSOLMint.toBase58();
+
+    let sqrtPriceLimitX64: BN;
+    if (!priceLimit || priceLimit.equals(new Decimal(0))) {
+      sqrtPriceLimitX64 = baseIn ? MIN_SQRT_PRICE_X64.add(new BN(1)) : MAX_SQRT_PRICE_X64.sub(new BN(1));
+    } else {
+      sqrtPriceLimitX64 = SqrtPriceMath.priceToSqrtPriceX64(
+        priceLimit,
+        poolInfo.mintA.decimals,
+        poolInfo.mintB.decimals,
+      );
+    }
+
+    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintA.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintA.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintB.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintB.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const swapInsInfo = ClmmInstrument.makeSwapBaseInInstructions({
+      poolInfo,
+      poolKeys,
+      observationId,
+      ownerInfo: {
+        wallet: payer,
+        tokenAccountA: ownerTokenAccountA!,
+        tokenAccountB: ownerTokenAccountB!,
+      },
+      inputMint: new PublicKey(inputMint),
+      amountIn,
+      amountOutMin,
+      sqrtPriceLimitX64,
+      remainingAccounts,
+    })
+
+    return swapInsInfo
 
     // txBuilder.addCustomComputeBudget(computeBudgetConfig);
     // txBuilder.addTipInstruction(txTipConfig);
-
   }
+
 }
 
 

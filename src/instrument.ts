@@ -933,4 +933,148 @@ export class ClmmInstrument {
     });
   }
 
+  static makeSwapBaseInInstructions({
+    poolInfo,
+    poolKeys,
+    observationId,
+    ownerInfo,
+    inputMint,
+    amountIn,
+    amountOutMin,
+    sqrtPriceLimitX64,
+    remainingAccounts,
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    observationId: PublicKey;
+    ownerInfo: {
+      wallet: PublicKey;
+      tokenAccountA: PublicKey;
+      tokenAccountB: PublicKey;
+    };
+
+    inputMint: PublicKey;
+
+    amountIn: BN;
+    amountOutMin: BN;
+    sqrtPriceLimitX64: BN;
+
+    remainingAccounts: PublicKey[];
+  }): ReturnTypeMakeInstructions {
+    const [programId, id] = [new PublicKey(poolInfo.programId), new PublicKey(poolInfo.id)];
+    const [mintAVault, mintBVault] = [new PublicKey(poolKeys.vault.A), new PublicKey(poolKeys.vault.B)];
+    const [mintA, mintB] = [new PublicKey(poolInfo.mintA.address), new PublicKey(poolInfo.mintB.address)];
+
+    const isInputMintA = poolInfo.mintA.address === inputMint.toString();
+
+    const ins = [
+      this.swapInstruction(
+        programId,
+        ownerInfo.wallet,
+
+        id,
+        new PublicKey(poolInfo.config.id),
+
+        isInputMintA ? ownerInfo.tokenAccountA : ownerInfo.tokenAccountB,
+        isInputMintA ? ownerInfo.tokenAccountB : ownerInfo.tokenAccountA,
+
+        isInputMintA ? mintAVault : mintBVault,
+        isInputMintA ? mintBVault : mintAVault,
+
+        isInputMintA ? mintA : mintB,
+        isInputMintA ? mintB : mintA,
+
+        remainingAccounts,
+        observationId,
+        amountIn,
+        amountOutMin,
+        sqrtPriceLimitX64,
+        true,
+        getPdaExBitmapAccount(programId, id).publicKey,
+      ),
+    ];
+    return {
+      signers: [],
+      instructions: ins,
+      instructionTypes: [InstructionType.ClmmSwapBaseIn],
+      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
+      address: {},
+    };
+  }
+
+  static swapInstruction(
+    programId: PublicKey,
+    payer: PublicKey,
+    poolId: PublicKey,
+    ammConfigId: PublicKey,
+    inputTokenAccount: PublicKey,
+    outputTokenAccount: PublicKey,
+    inputVault: PublicKey,
+    outputVault: PublicKey,
+    inputMint: PublicKey,
+    outputMint: PublicKey,
+    tickArray: PublicKey[],
+    observationId: PublicKey,
+
+    amount: BN,
+    otherAmountThreshold: BN,
+    sqrtPriceLimitX64: BN,
+    isBaseInput: boolean,
+
+    exTickArrayBitmap?: PublicKey,
+  ): TransactionInstruction {
+    const dataLayout = struct([
+      u64("amount"),
+      u64("otherAmountThreshold"),
+      u128("sqrtPriceLimitX64"),
+      bool("isBaseInput"),
+    ]);
+
+    const remainingAccounts = [
+      ...(exTickArrayBitmap ? [{ pubkey: exTickArrayBitmap, isSigner: false, isWritable: true }] : []),
+      ...tickArray.map((i) => ({ pubkey: i, isSigner: false, isWritable: true })),
+    ];
+
+    const keys = [
+      { pubkey: payer, isSigner: true, isWritable: false },
+      { pubkey: ammConfigId, isSigner: false, isWritable: false },
+
+      { pubkey: poolId, isSigner: false, isWritable: true },
+      { pubkey: inputTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: outputTokenAccount, isSigner: false, isWritable: true },
+      { pubkey: inputVault, isSigner: false, isWritable: true },
+      { pubkey: outputVault, isSigner: false, isWritable: true },
+
+      { pubkey: observationId, isSigner: false, isWritable: true },
+
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false },
+
+      { pubkey: inputMint, isSigner: false, isWritable: false },
+      { pubkey: outputMint, isSigner: false, isWritable: false },
+
+      ...remainingAccounts,
+    ];
+
+    const data = Buffer.alloc(dataLayout.span);
+    dataLayout.encode(
+      {
+        amount,
+        otherAmountThreshold,
+        sqrtPriceLimitX64,
+        isBaseInput,
+      },
+      data,
+    );
+
+    const aData = Buffer.from([...anchorDataBuf.swap, ...data]);
+
+    return new TransactionInstruction({
+      keys,
+      programId,
+      data: aData,
+    });
+  }
+
 }

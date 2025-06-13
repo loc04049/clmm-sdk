@@ -359,6 +359,7 @@ export type PoolInfoConcentratedItem = {
   mintA: ApiV3Token;
   mintB: ApiV3Token;
   config: {
+    id: string;
     tickSpacing: number;
   },
   rewardDefaultInfos: rewardDefaultInfo[] | [];
