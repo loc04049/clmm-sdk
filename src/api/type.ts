@@ -110,8 +110,3 @@ interface Base {
   openTime: string;
   vault: { A: string; B: string };
 }
-
-export interface ClmmRewardType {
-  mint: ApiV3Token;
-  vault: string;
-}

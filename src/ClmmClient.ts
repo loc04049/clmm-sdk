@@ -1,5 +1,5 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { ClmmClientConfig, CreateConcentratedPool, IncreasePositionFromLiquidity, OpenPositionFromBase } from "./type";
+import { ClmmClientConfig, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase } from "./type";
 import { PoolInfoLayout, PositionInfoLayout } from "./layout";
 import { CLMM_PROGRAM_ID } from "./constants/programIds";
 import { BN } from "bn.js";
@@ -102,9 +102,6 @@ export class ClmmClient {
     extMintRes.forEach((r, idx) => {
       if (r) extendMintAccount.push(fetchAccounts[idx]);
     });
-
-    console.log("🚀 ~ ClmmClient ~ mintA:", mintA.address)
-
 
     const insInfo = await ClmmInstrument.createPoolInstructions({
       connection: this.connection,
@@ -249,6 +246,135 @@ export class ClmmClient {
     instructions.push(...ins.instructions);
 
     return { ...ins, instructions }
+  }
+
+  public async decreaseLiquidity(
+    props: DecreaseLiquidity,
+  ) {
+    const {
+      payer,
+      poolInfo,
+      poolKeys,
+      ownerPosition,
+      amountMinA,
+      amountMinB,
+      liquidity,
+      associatedOnly = true,
+      checkCreateATAOwner = false,
+      computeBudgetConfig,
+      txTipConfig,
+      isClosePosition
+    } = props;
+
+
+    // const mintAUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintA.address === WSOLMint.toString();
+    // const mintBUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintB.address === WSOLMint.toString();
+
+    const instructions: TransactionInstruction[] = [];
+
+    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintA.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintA.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintB.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintB.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    // const rewardAccounts: PublicKey[] = [];
+    // for (const itemReward of poolInfo.rewardDefaultInfos) {
+    //   const rewardUseSOLBalance = ownerInfo.useSOLBalance && itemReward.mint.address === WSOLMint.toString();
+
+    //   let ownerRewardAccount: PublicKey | undefined;
+
+    //   if (itemReward.mint.address === poolInfo.mintA.address) ownerRewardAccount = ownerTokenAccountA;
+    //   else if (itemReward.mint.address === poolInfo.mintB.address) ownerRewardAccount = ownerTokenAccountB;
+    //   else {
+    //     const { account: _ownerRewardAccount, instructionParams: ownerRewardAccountInstructions } =
+    //       await this.scope.account.getOrCreateTokenAccount({
+    //         tokenProgram: new PublicKey(itemReward.mint.programId),
+    //         mint: new PublicKey(itemReward.mint.address),
+    //         notUseTokenAccount: rewardUseSOLBalance,
+    //         owner: this.scope.ownerPubKey,
+    //         createInfo: {
+    //           payer: this.scope.ownerPubKey,
+    //           amount: 0,
+    //         },
+    //         skipCloseAccount: !rewardUseSOLBalance,
+    //         associatedOnly: rewardUseSOLBalance ? false : associatedOnly,
+    //         checkCreateATAOwner,
+    //       });
+    //     ownerRewardAccount = _ownerRewardAccount;
+    //     ownerRewardAccountInstructions && txBuilder.addInstruction(ownerRewardAccountInstructions);
+    //   }
+
+    //   rewardAccounts.push(ownerRewardAccount!);
+    // }
+
+    const nft2022 = (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(
+      TOKEN_2022_PROGRAM_ID,
+    );
+    const decreaseInsInfo = await ClmmInstrument.decreaseLiquidityInstructions({
+      poolInfo,
+      poolKeys,
+      ownerPosition,
+      ownerInfo: {
+        wallet: payer,
+        tokenAccountA: ownerTokenAccountA!,
+        tokenAccountB: ownerTokenAccountB!,
+        rewardAccounts: [],
+      },
+      liquidity,
+      amountMinA,
+      amountMinB,
+      nft2022,
+    });
+
+
+    // txBuilder.addInstruction({
+    //   instructions: decreaseInsInfo.instructions,
+    //   instructionTypes: [InstructionType.ClmmDecreasePosition],
+    // });
+
+    instructions.push(...decreaseInsInfo.instructions);
+
+    let extInfo = { ...decreaseInsInfo.address };
+    if (isClosePosition) {
+      const closeInsInfo = await ClmmInstrument.closePositionInstructions({
+        poolInfo,
+        poolKeys,
+        ownerInfo: { wallet: payer },
+        ownerPosition,
+        nft2022,
+      });
+
+      instructions.push(...closeInsInfo.instructions);
+
+      extInfo = { ...extInfo, ...closeInsInfo.address };
+    }
+
+    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
+    // txBuilder.addTipInstruction(txTipConfig);
+
+    return {
+      instructions,
+      address: extInfo
+    }
+
+    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
+    // txBuilder.addTipInstruction(txTipConfig);
+
   }
 }
 

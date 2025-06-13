@@ -14,3 +14,7 @@ export const RENT_PROGRAM_ID = IS_DEV
   ? new PublicKey("SysvarRent111111111111111111111111111111111")
   : new PublicKey("SysvarRent111111111111111111111111111111111")
 
+
+export const MEMO_PROGRAM_ID = IS_DEV
+  ? new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
+  : new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr") 

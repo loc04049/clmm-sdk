@@ -10,7 +10,7 @@ import { InstructionType } from "./constants";
 import { TickUtils } from "./utils/tick";
 import { getATAAddress } from "./utils/util";
 import { PoolUtils } from "./utils/pool";
-import { METADATA_PROGRAM_ID } from "./constants/programIds";
+import { MEMO_PROGRAM_ID, METADATA_PROGRAM_ID } from "./constants/programIds";
 import { ClmmPositionLayout } from "./layout";
 
 const anchorDataBuf = {
@@ -180,7 +180,6 @@ export class ClmmInstrument {
       nftMintAccount = new PublicKey((await getEphemeralSigners(1))[0]);
     } else {
       const _k = Keypair.generate();
-      console.log("🚀 ~ ClmmInstrument ~ _k:", _k.publicKey.toString())
       signers.push(_k);
       nftMintAccount = _k.publicKey;
     }
@@ -657,6 +656,275 @@ export class ClmmInstrument {
     );
 
     const aData = Buffer.from([...anchorDataBuf.increaseLiquidity, ...data]);
+
+    return new TransactionInstruction({
+      keys,
+      programId,
+      data: aData,
+    });
+  }
+
+  static decreaseLiquidityInstructions({
+    poolInfo,
+    poolKeys,
+    ownerPosition,
+    ownerInfo,
+    liquidity,
+    amountMinA,
+    amountMinB,
+    programId,
+    nft2022,
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    ownerPosition: ClmmPositionLayout;
+    ownerInfo: {
+      wallet: PublicKey;
+      tokenAccountA: PublicKey;
+      tokenAccountB: PublicKey;
+      rewardAccounts: PublicKey[];
+    };
+
+    liquidity: BN;
+    amountMinA: BN;
+    amountMinB: BN;
+    programId?: PublicKey;
+    nft2022?: boolean;
+  }) {
+    const [poolProgramId, id] = [new PublicKey(poolInfo.programId), new PublicKey(poolInfo.id)];
+    const tickArrayLowerStartIndex = TickUtils.getTickArrayStartIndexByTick(
+      ownerPosition.tickLower,
+      poolInfo.config.tickSpacing,
+    );
+    const tickArrayUpperStartIndex = TickUtils.getTickArrayStartIndexByTick(
+      ownerPosition.tickUpper,
+      poolInfo.config.tickSpacing,
+    );
+
+    const { publicKey: tickArrayLower } = getPdaTickArrayAddress(poolProgramId, id, tickArrayLowerStartIndex);
+    const { publicKey: tickArrayUpper } = getPdaTickArrayAddress(poolProgramId, id, tickArrayUpperStartIndex);
+    const { publicKey: positionNftAccount } = nft2022
+      ? getATAAddress(ownerInfo.wallet, ownerPosition.nftMint, TOKEN_2022_PROGRAM_ID)
+      : getATAAddress(ownerInfo.wallet, ownerPosition.nftMint, programId);
+    const { publicKey: personalPosition } = getPdaPersonalPositionAddress(poolProgramId, ownerPosition.nftMint);
+    const { publicKey: protocolPosition } = getPdaProtocolPositionAddress(
+      poolProgramId,
+      id,
+      ownerPosition.tickLower,
+      ownerPosition.tickUpper,
+    );
+
+    const rewardAccounts: {
+      poolRewardVault: PublicKey;
+      ownerRewardVault: PublicKey;
+      rewardMint: PublicKey;
+    }[] = [];
+    for (let i = 0; i < poolInfo.rewardDefaultInfos.length; i++) {
+      rewardAccounts.push({
+        poolRewardVault: new PublicKey(poolKeys.rewardInfos[i].vault),
+        ownerRewardVault: ownerInfo.rewardAccounts[i],
+        rewardMint: new PublicKey(poolInfo.rewardDefaultInfos[i].mint.address),
+      });
+    }
+
+    const ins: TransactionInstruction[] = [];
+    const decreaseIns = this.decreaseLiquidityInstruction(
+      poolProgramId,
+      ownerInfo.wallet,
+      positionNftAccount,
+      personalPosition,
+      id,
+      protocolPosition,
+      tickArrayLower,
+      tickArrayUpper,
+      ownerInfo.tokenAccountA,
+      ownerInfo.tokenAccountB,
+      new PublicKey(poolKeys.vault.A),
+      new PublicKey(poolKeys.vault.B),
+      new PublicKey(poolInfo.mintA.address),
+      new PublicKey(poolInfo.mintB.address),
+      rewardAccounts,
+
+      liquidity,
+      amountMinA,
+      amountMinB,
+      PoolUtils.isOverflowDefaultTickarrayBitmap(poolInfo.config.tickSpacing, [
+        tickArrayLowerStartIndex,
+        tickArrayUpperStartIndex,
+      ])
+        ? getPdaExBitmapAccount(poolProgramId, id).publicKey
+        : undefined,
+    );
+    ins.push(decreaseIns);
+
+    return {
+      address: {
+        tickArrayLower,
+        tickArrayUpper,
+        positionNftAccount,
+        personalPosition,
+        protocolPosition,
+      },
+      signers: [],
+      instructions: ins,
+      instructionTypes: [InstructionType.ClmmDecreasePosition],
+      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
+    };
+  }
+
+  static decreaseLiquidityInstruction(
+    programId: PublicKey,
+    positionNftOwner: PublicKey,
+    positionNftAccount: PublicKey,
+    personalPosition: PublicKey,
+
+    poolId: PublicKey,
+    protocolPosition: PublicKey,
+    tickArrayLower: PublicKey,
+    tickArrayUpper: PublicKey,
+    ownerTokenAccountA: PublicKey,
+    ownerTokenAccountB: PublicKey,
+    mintVaultA: PublicKey,
+    mintVaultB: PublicKey,
+    mintMintA: PublicKey,
+    mintMintB: PublicKey,
+    rewardAccounts: {
+      poolRewardVault: PublicKey;
+      ownerRewardVault: PublicKey;
+      rewardMint: PublicKey;
+    }[],
+
+    liquidity: BN,
+    amountMinA: BN,
+    amountMinB: BN,
+
+    exTickArrayBitmap?: PublicKey,
+  ): TransactionInstruction {
+    const dataLayout = struct([u128("liquidity"), u64("amountMinA"), u64("amountMinB")]);
+
+    const remainingAccounts = [
+      ...(exTickArrayBitmap ? [{ pubkey: exTickArrayBitmap, isSigner: false, isWritable: true }] : []),
+      ...rewardAccounts
+        .map((i) => [
+          { pubkey: i.poolRewardVault, isSigner: false, isWritable: true },
+          { pubkey: i.ownerRewardVault, isSigner: false, isWritable: true },
+          { pubkey: i.rewardMint, isSigner: false, isWritable: false },
+        ])
+        .flat(),
+    ];
+
+    const keys = [
+      { pubkey: positionNftOwner, isSigner: true, isWritable: false },
+      { pubkey: positionNftAccount, isSigner: false, isWritable: false },
+      { pubkey: personalPosition, isSigner: false, isWritable: true },
+      { pubkey: poolId, isSigner: false, isWritable: true },
+      { pubkey: protocolPosition, isSigner: false, isWritable: true },
+      { pubkey: mintVaultA, isSigner: false, isWritable: true },
+      { pubkey: mintVaultB, isSigner: false, isWritable: true },
+      { pubkey: tickArrayLower, isSigner: false, isWritable: true },
+      { pubkey: tickArrayUpper, isSigner: false, isWritable: true },
+
+      { pubkey: ownerTokenAccountA, isSigner: false, isWritable: true },
+      { pubkey: ownerTokenAccountB, isSigner: false, isWritable: true },
+
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: MEMO_PROGRAM_ID, isSigner: false, isWritable: false },
+
+      { pubkey: mintMintA, isSigner: false, isWritable: false },
+      { pubkey: mintMintB, isSigner: false, isWritable: false },
+
+      ...remainingAccounts,
+    ];
+
+    const data = Buffer.alloc(dataLayout.span);
+    dataLayout.encode(
+      {
+        liquidity,
+        amountMinA,
+        amountMinB,
+      },
+      data,
+    );
+
+    const aData = Buffer.from([...anchorDataBuf.decreaseLiquidity, ...data]);
+
+    return new TransactionInstruction({
+      keys,
+      programId,
+      data: aData,
+    });
+  }
+
+  static closePositionInstructions({
+    poolInfo,
+    poolKeys,
+    ownerInfo,
+    ownerPosition,
+    nft2022,
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    ownerPosition: ClmmPositionLayout;
+    ownerInfo: {
+      wallet: PublicKey;
+    };
+    nft2022?: boolean;
+  }) {
+    const programId = new PublicKey(poolInfo.programId);
+    const positionNftAccount = nft2022
+      ? getATAAddress(ownerInfo.wallet, ownerPosition.nftMint, TOKEN_2022_PROGRAM_ID).publicKey
+      : getATAAddress(ownerInfo.wallet, ownerPosition.nftMint, TOKEN_PROGRAM_ID).publicKey;
+    const { publicKey: personalPosition } = getPdaPersonalPositionAddress(programId, ownerPosition.nftMint);
+
+    const ins: TransactionInstruction[] = [];
+    ins.push(
+      this.closePositionInstruction(
+        programId,
+        ownerInfo.wallet,
+        ownerPosition.nftMint,
+        positionNftAccount,
+        personalPosition,
+        nft2022,
+      ),
+    );
+
+    return {
+      address: {
+        positionNftAccount,
+        personalPosition,
+      },
+      signers: [],
+      instructions: ins,
+      instructionTypes: [InstructionType.ClmmClosePosition],
+      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
+    };
+  }
+
+  static closePositionInstruction(
+    programId: PublicKey,
+    positionNftOwner: PublicKey,
+    positionNftMint: PublicKey,
+    positionNftAccount: PublicKey,
+    personalPosition: PublicKey,
+    nft2022?: boolean,
+  ): TransactionInstruction {
+    const dataLayout = struct([]);
+
+    const keys = [
+      { pubkey: positionNftOwner, isSigner: true, isWritable: true },
+      { pubkey: positionNftMint, isSigner: false, isWritable: true },
+      { pubkey: positionNftAccount, isSigner: false, isWritable: true },
+      { pubkey: personalPosition, isSigner: false, isWritable: true },
+
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: nft2022 ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ];
+
+    const data = Buffer.alloc(dataLayout.span);
+    dataLayout.encode({}, data);
+
+    const aData = Buffer.from([...anchorDataBuf.closePosition, ...data]);
 
     return new TransactionInstruction({
       keys,

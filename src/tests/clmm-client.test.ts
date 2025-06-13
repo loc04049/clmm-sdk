@@ -105,10 +105,12 @@ describe('ClmmClient', () => {
         mintB: address.mintB,
         config: {
           tickSpacing,
-        }
+        },
+        rewardDefaultInfos: [],
       },
       poolKeys: {
-        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() }
+        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+        rewardInfos: [],
       },
       tickLower: TickUtils.getTickLowerUpper(1, tickSpacing),
       tickUpper: TickUtils.getTickLowerUpper(3, tickSpacing),
@@ -118,8 +120,6 @@ describe('ClmmClient', () => {
       otherAmountMax: new BN(1000000000000),
       nft2022: true
     })
-    console.log("🚀 ~ it ~ personalPosition:", insOpenPositionFromBase.address.personalPosition.toString())
-
 
     const transaction = new Transaction().add(...instructions);
 
@@ -145,7 +145,8 @@ describe('ClmmClient', () => {
     //   feeGrowthInsideA: positionInfo.tokenFeesOwedA.toString(),
     //   feeGrowthInsideB: positionInfo.tokenFeesOwedB.toString(),
     // })
-
+    // 2367104
+    // 7718200
 
     const insAddPoolInfo = await client.increasePositionFromLiquidity({
       payer: defaultAccount.publicKey,
@@ -156,13 +157,15 @@ describe('ClmmClient', () => {
         mintB: address.mintB,
         config: {
           tickSpacing,
-        }
+        },
+        rewardDefaultInfos: [],
       },
       poolKeys: {
-        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() }
+        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+        rewardInfos: []
       },
       ownerPosition: positionInfo,
-      liquidity: new BN(1),
+      liquidity: new BN(1000000),
       amountMaxA: new BN(1000000000),
       amountMaxB: new BN(1000000000),
     })
@@ -177,6 +180,41 @@ describe('ClmmClient', () => {
 
     // remove liquidity
 
+    const positionInfoRemove = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
+    console.log("🚀 ~ it ~ positionInfoRemove:", positionInfoRemove.liquidity.toString())
+
+
+    const insRemovePoolInfo = await client.decreaseLiquidity({
+      payer: defaultAccount.publicKey,
+      poolInfo: {
+        programId: CLMM_PROGRAM_ID.toString(),
+        id: address.poolId.toString(),
+        mintA: address.mintA,
+        mintB: address.mintB,
+        config: {
+          tickSpacing,
+        },
+        rewardDefaultInfos: [],
+      },
+      poolKeys: {
+        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+        rewardInfos: []
+      },
+      ownerPosition: positionInfo,
+      liquidity: positionInfoRemove.liquidity,
+      amountMinA: new BN(0),
+      amountMinB: new BN(0),
+      isClosePosition: true,
+    })
+
+    const transactionRemoveLiquidity = new Transaction().add(...insRemovePoolInfo.instructions);
+
+    const hashRemoveLiquidity = await connection.sendTransaction(transactionRemoveLiquidity, [defaultAccount], {
+      skipPreflight: true
+    });
+    console.log("🚀 ~ it ~ hashRemoveLiquidity:", hashRemoveLiquidity)
+
+    await connection.confirmTransaction(hashRemoveLiquidity, 'finalized');
 
 
   })

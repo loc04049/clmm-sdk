@@ -347,6 +347,12 @@ export interface OpenPositionFromBase {
   txTipConfig?: TxTipConfig;
 }
 
+type rewardDefaultInfo = {
+  mint: {
+    address: string
+  }
+}
+
 export type PoolInfoConcentratedItem = {
   programId: string;
   id: string;
@@ -354,12 +360,19 @@ export type PoolInfoConcentratedItem = {
   mintB: ApiV3Token;
   config: {
     tickSpacing: number;
-  }
+  },
+  rewardDefaultInfos: rewardDefaultInfo[] | [];
+}
+
+export interface ClmmRewardType {
+  mint: ApiV3Token;
+  vault: string;
 }
 
 export type ClmmKeys = {
   lookupTableAccount?: string;
   vault: { A: string; B: string };
+  rewardInfos: ClmmRewardType[] | []
 };
 
 export interface IncreasePositionFromLiquidity {
@@ -376,5 +389,27 @@ export interface IncreasePositionFromLiquidity {
   liquidity: BN;
   computeBudgetConfig?: ComputeBudgetConfig;
   txTipConfig?: TxTipConfig;
+}
+
+export interface DecreaseLiquidity {
+  payer: PublicKey;
+  poolInfo: PoolInfoConcentratedItem;
+  poolKeys: ClmmKeys;
+  ownerPosition: ClmmPositionLayout;
+  // ownerInfo: {
+  //   useSOLBalance?: boolean; // if has WSOL mint
+  //   closePosition?: boolean;
+  // };
+
+  liquidity: BN;
+  amountMinA: BN;
+  amountMinB: BN;
+  nftAccount?: PublicKey;
+
+  associatedOnly?: boolean;
+  checkCreateATAOwner?: boolean;
+  computeBudgetConfig?: ComputeBudgetConfig;
+  txTipConfig?: TxTipConfig;
+  isClosePosition: boolean;
 }
 

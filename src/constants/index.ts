@@ -13,6 +13,8 @@ export const InstructionType = {
     ClmmCreatePool: "ClmmCreatePool",
     ClmmOpenPosition: "ClmmOpenPosition",
     ClmmIncreasePosition: "ClmmIncreasePosition",
+    ClmmDecreasePosition: "ClmmDecreasePosition",
+    ClmmClosePosition: "ClmmClosePosition",
 }
 
 export const WSOLMint = new PublicKey("So11111111111111111111111111111111111111112");
