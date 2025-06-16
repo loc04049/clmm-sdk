@@ -129,3 +129,17 @@ export const splAccountLayout = struct([
   publicKey("closeAuthority"),
 ]);
 
+export const AmmConfigLayout = struct([
+  blob(8),
+  u8('bump'),
+  u16('index'),
+  publicKey('owner'),
+  u32('protocolFeeRate'),
+  u32('tradeFeeRate'),
+  u16('tickSpacing'),
+  u32('fundFeeRate'),
+  u32('paddingU32'),
+  publicKey('fundOwner'),
+  seq(u64(), 3, 'padding'), // [u64; 3]
+]);
+

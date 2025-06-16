@@ -1,11 +1,11 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { ClmmClientConfig, ClmmKeys, ComputeBudgetConfig, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, TxTipConfig } from "./type";
-import { ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
+import { AmmConfigLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
 import { CLMM_PROGRAM_ID } from "./constants/programIds";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { getPdaMintExAccount } from "./utils/pda";
+import { getPdaAmmConfigId, getPdaMintExAccount } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
 import { WSOLMint } from "./constants";
 import { getOrCreateATAWithExtension } from "./utils/util";
@@ -22,6 +22,16 @@ export class ClmmClient {
         development: 'coin98',
       },
     });
+  }
+
+  public async getAmmConfigInfo(ammConfigId: string) {
+    const configPubkey = new PublicKey(ammConfigId);
+    const accountInfo = await this.connection.getAccountInfo(configPubkey);
+    if (!accountInfo) {
+      throw new Error('Config not found on-chain');
+    }
+    const configInfo = AmmConfigLayout.decode(accountInfo.data);
+    return configInfo
   }
 
 
@@ -489,6 +499,40 @@ export class ClmmClient {
 
     // txBuilder.addCustomComputeBudget(computeBudgetConfig);
     // txBuilder.addTipInstruction(txTipConfig);
+  }
+
+  public async createAmmConfig({
+    payer,
+    index,
+    tickSpacing,
+    feeRate,
+    fundOwner
+  }: {
+    payer: PublicKey;
+    index: number;
+    tickSpacing: number;
+    feeRate: {
+      protocolFeeRate: number;
+      tradeFeeRate: number;
+      fundFeeRate: number;
+    }
+    fundOwner: PublicKey;
+  }) {
+
+    const ammConfig = getPdaAmmConfigId(CLMM_PROGRAM_ID, index)
+
+    const ins = ClmmInstrument.createAmmConfigInstruction({
+      ammConfig: ammConfig.publicKey,
+      payer,
+      programId: CLMM_PROGRAM_ID,
+      index,
+      tickSpacing,
+      feeRate,
+      fundOwner
+    })
+    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
+    // txBuilder.addTipInstruction(txTipConfig);
+    return ins
   }
 
 }

@@ -1,4 +1,4 @@
-import { bool, RENT_PROGRAM_ID, s32, struct, u128, u64, u8 } from "@raydium-io/raydium-sdk-v2";
+import { bool, publicKey, RENT_PROGRAM_ID, s32, struct, u128, u16, u32, u64, u8 } from "@raydium-io/raydium-sdk-v2";
 import { Connection, Keypair, PublicKey, Signer, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import { ZERO } from "./utils/constants";
@@ -14,6 +14,16 @@ import { MEMO_PROGRAM_ID, METADATA_PROGRAM_ID } from "./constants/programIds";
 import { ClmmPositionLayout } from "./layout";
 
 const anchorDataBuf = {
+  createAmmConfig: [
+    137,
+    52,
+    237,
+    212,
+    215,
+    117,
+    108,
+    104
+  ],
   createPool: [233, 146, 209, 142, 207, 104, 64, 188],
   initReward: [95, 135, 192, 196, 242, 129, 230, 68],
   setRewardEmissions: [112, 52, 167, 75, 32, 201, 211, 137],
@@ -39,6 +49,69 @@ interface CreatePoolInstruction {
 }
 
 export class ClmmInstrument {
+
+  static createAmmConfigInstruction({
+    ammConfig,
+    payer,
+    programId,
+    index,
+    tickSpacing,
+    feeRate,
+    fundOwner
+  }: {
+    ammConfig: PublicKey;
+    payer: PublicKey;
+    programId: PublicKey;
+    index: number;
+    tickSpacing: number;
+    feeRate: {
+      protocolFeeRate: number;
+      tradeFeeRate: number;
+      fundFeeRate: number;
+    };
+    fundOwner: PublicKey;
+
+  }): TransactionInstruction {
+    const dataLayout = struct(
+      [
+        u16('index'),
+        u16('tickSpacing'),
+        u32('protocolFeeRate'),
+        u32('tradeFeeRate'),
+        u32('fundFeeRate'),
+        publicKey('fundOwner'),
+      ])
+
+    const data = Buffer.alloc(dataLayout.span);
+    dataLayout.encode(
+      {
+        index,
+        tickSpacing,
+        protocolFeeRate: feeRate.protocolFeeRate,
+        tradeFeeRate: feeRate.tradeFeeRate,
+        fundFeeRate: feeRate.fundFeeRate,
+        fundOwner
+      },
+      data,
+    );
+
+
+    const keys = [
+      { pubkey: payer, isSigner: true, isWritable: true },
+      { pubkey: ammConfig, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ];
+
+
+    const aData = Buffer.from([...anchorDataBuf.createAmmConfig, ...data]);
+
+    return new TransactionInstruction({
+      keys,
+      programId,
+      data: aData
+    });
+  }
+
   static createPoolInstruction(
     programId: PublicKey,
     poolId: PublicKey,
