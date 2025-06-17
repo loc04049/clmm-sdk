@@ -2,8 +2,7 @@ import { bool, publicKey, RENT_PROGRAM_ID, s32, struct, u128, u16, u32, u64, u8 
 import { Connection, Keypair, PublicKey, Signer, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import { ZERO } from "./utils/constants";
-import { ApiV3Token } from "./api";
-import { ClmmKeys, PoolInfoConcentratedItem, ReturnTypeMakeInstructions } from "./type";
+import { ClmmKeys, PoolInfoConcentratedItem, ReturnTypeMakeInstructions, TokenInfo } from "./type";
 import { getPdaExBitmapAccount, getPdaMetadataKey, getPdaObservationAccount, getPdaPersonalPositionAddress, getPdaPoolId, getPdaPoolVaultId, getPdaProtocolPositionAddress, getPdaTickArrayAddress } from "./utils/pda";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { InstructionType } from "./constants";
@@ -31,8 +30,8 @@ interface CreatePoolInstruction {
   connection: Connection;
   programId: PublicKey;
   owner: PublicKey;
-  mintA: ApiV3Token;
-  mintB: ApiV3Token;
+  mintA: TokenInfo;
+  mintB: TokenInfo;
   ammConfigId: PublicKey;
   initialPriceX64: BN;
   forerunCreate?: boolean;
@@ -169,8 +168,8 @@ export class ClmmInstrument {
       exBitmapAccount: PublicKey;
       mintAVault: PublicKey;
       mintBVault: PublicKey;
-      mintA: ApiV3Token;
-      mintB: ApiV3Token;
+      mintA: TokenInfo;
+      mintB: TokenInfo;
     }>
   > {
     const { programId, owner, mintA, mintB, ammConfigId, initialPriceX64, extendMintAccount } = props;
@@ -925,13 +924,11 @@ export class ClmmInstrument {
 
   static closePositionInstructions({
     poolInfo,
-    poolKeys,
     ownerInfo,
     ownerPosition,
     nft2022,
   }: {
     poolInfo: PoolInfoConcentratedItem;
-    poolKeys: ClmmKeys;
     ownerPosition: ClmmPositionLayout;
     ownerInfo: {
       wallet: PublicKey;

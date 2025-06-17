@@ -315,7 +315,6 @@ export class ClmmClient {
     if (isClosePosition) {
       const closeInsInfo = await ClmmInstrument.closePositionInstructions({
         poolInfo,
-        poolKeys,
         ownerInfo: { wallet: payer },
         ownerPosition,
         nft2022,
@@ -333,18 +332,15 @@ export class ClmmClient {
 
   public async closePosition({
     poolInfo,
-    poolKeys,
     ownerPosition,
     payer,
   }: {
     poolInfo: PoolInfoConcentratedItem;
-    poolKeys: ClmmKeys;
     ownerPosition: ClmmPositionLayout;
     payer: PublicKey;
   }) {
     const ins = ClmmInstrument.closePositionInstructions({
       poolInfo,
-      poolKeys,
       ownerInfo: { wallet: payer },
       ownerPosition,
       nft2022: (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(TOKEN_2022_PROGRAM_ID),

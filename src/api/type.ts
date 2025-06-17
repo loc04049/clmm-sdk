@@ -1,6 +1,7 @@
+import { TokenInfo } from "../type";
 
 type FarmRewardInfoOld = {
-  mint: ApiV3Token;
+  mint: TokenInfo;
   perSecond: number;
 };
 
@@ -26,21 +27,13 @@ export interface TransferFeeDataBaseType {
 }
 
 
-export type ApiV3Token = {
-  chainId: string;
-  address: string;
-  programId: string;
-  logoURI: string;
-  symbol: string;
-  name: string;
-  decimals: number;
-};
+
 
 export interface ApiV3PoolInfoBaseItem {
   programId: string;
   id: string;
-  mintA: ApiV3Token;
-  mintB: ApiV3Token;
+  mintA: TokenInfo;
+  mintB: TokenInfo;
   rewardDefaultInfos: PoolFarmRewardInfo[];
   rewardDefaultPoolInfos: "Ecosystem" | "Fusion" | "Raydium" | "Clmm";
   price: number;

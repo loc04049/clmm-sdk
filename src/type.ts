@@ -4,10 +4,19 @@ import Decimal from "decimal.js";
 import { ClmmPositionLayout, PoolInfoLayout } from "./layout";
 import { GetStructureSchema, Percent, Price, TokenAmount, TransferAmountFee } from "@raydium-io/raydium-sdk-v2";
 import { TickArray } from "./utils/tick";
-import { ApiClmmConfigV3, ApiV3PoolInfoConcentratedItem, ApiV3Token } from "./api";
+import { ApiV3PoolInfoConcentratedItem } from "./api";
 import { splAccountLayout } from "./layout";
 
 
+export type TokenInfo = {
+  chainId: string;
+  address: string;
+  programId: string;
+  logoURI: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+};
 export interface ReturnTypeMakeInstructions<T = Record<string, PublicKey>> {
   signers: (Signer | Keypair)[];
   instructions: TransactionInstruction[];
@@ -32,8 +41,8 @@ export interface ClmmConfigInfo {
 
 export interface CreateConcentratedPool {
   owner: PublicKey;
-  mint1: ApiV3Token;
-  mint2: ApiV3Token;
+  mint1: TokenInfo;
+  mint2: TokenInfo;
   ammConfigId: PublicKey;
   initialPrice: Decimal;
 }
@@ -202,8 +211,8 @@ export interface ClmmPoolRewardLayoutInfo {
 export interface ComputeClmmPoolInfo {
   id: PublicKey;
   version: 6;
-  mintA: ApiV3Token;
-  mintB: ApiV3Token;
+  mintA: TokenInfo;
+  mintB: TokenInfo;
 
   ammConfig: ClmmConfigInfo;
   observationId: PublicKey;
@@ -342,16 +351,14 @@ export interface OpenPositionFromBase {
 }
 
 type rewardDefaultInfo = {
-  mint: {
-    address: string
-  }
+  mint: TokenInfo
 }
 
 export type PoolInfoConcentratedItem = {
   programId: string;
   id: string;
-  mintA: ApiV3Token;
-  mintB: ApiV3Token;
+  mintA: TokenInfo;
+  mintB: TokenInfo;
   config: {
     id: string;
     tickSpacing: number;
@@ -360,7 +367,7 @@ export type PoolInfoConcentratedItem = {
 }
 
 export interface ClmmRewardType {
-  mint: ApiV3Token;
+  mint: TokenInfo;
   vault: string;
 }
 

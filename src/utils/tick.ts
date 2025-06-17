@@ -1,9 +1,8 @@
-import { ApiV3PoolInfoConcentratedItem } from '../api/type';
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import Decimal from "decimal.js";
 
-import { ClmmPoolInfo, TickArrayBitmapExtensionType } from "../type";
+import { ClmmPoolInfo, PoolInfoConcentratedItem, TickArrayBitmapExtensionType } from "../type";
 import { MAX_TICK, MIN_TICK } from "./constants";
 import { SqrtPriceMath, TickMath } from "./math";
 import { getPdaTickArrayAddress } from "./pda";
@@ -384,7 +383,7 @@ export class TickUtils {
     tick,
     baseIn,
   }: {
-    poolInfo: ApiV3PoolInfoConcentratedItem;
+    poolInfo: PoolInfoConcentratedItem;
     tick: number;
     baseIn: boolean;
   }): ReturnTypeGetTickPrice {

@@ -7,6 +7,7 @@ import {
   ClmmPoolRewardInfo,
   ClmmPoolRewardLayoutInfo,
   ComputeClmmPoolInfo,
+  PoolInfoConcentratedItem,
   ReturnTypeComputeAmountOut,
   ReturnTypeComputeAmountOutBaseOut,
   ReturnTypeComputeAmountOutFormat,
@@ -16,6 +17,7 @@ import {
   SDKParsedConcentratedInfo,
   TickArrayBitmapExtensionType,
   TokenAccountRaw,
+  TokenInfo,
 } from "../type";
 
 
@@ -29,7 +31,7 @@ import { PositionUtils } from "./position";
 import { TICK_ARRAY_BITMAP_SIZE, Tick, TickArray, TickUtils } from "./tick";
 import { TickArrayBitmap, TickArrayBitmapExtensionUtils } from "./tickarrayBitmap";
 import { TickQuery } from "./tickQuery";
-import { ApiV3PoolInfoConcentratedItem, ApiV3Token } from "../api";
+import { ApiV3PoolInfoConcentratedItem } from "../api";
 import { getMultipleAccountsInfo, getMultipleAccountsInfoWithCustomFlags, Percent, Price, solToWSol, Token, TokenAmount } from "@raydium-io/raydium-sdk-v2";
 import { getTransferAmountFeeV2, minExpirationTime } from "./transfer";
 import get from "lodash/get";
@@ -300,7 +302,7 @@ export class PoolUtils {
     rewardInfos,
   }: {
     connection: Connection;
-    apiPoolInfo: ApiV3PoolInfoConcentratedItem;
+    apiPoolInfo: PoolInfoConcentratedItem;
     chainTime: number;
     poolLiquidity: BN;
     rewardInfos: ClmmPoolRewardLayoutInfo[];
@@ -719,7 +721,7 @@ export class PoolUtils {
     poolInfo: ComputeClmmPoolInfo;
     tickArrayCache: { [key: string]: TickArray };
     amountIn: BN;
-    tokenOut: ApiV3Token;
+    tokenOut: TokenInfo;
     slippage: number;
     epochInfo: EpochInfo;
     catchLiquidityInsufficient?: boolean;
@@ -1340,47 +1342,4 @@ export function getLiquidityFromAmounts({
   });
 }
 
-const mockRewardData = {
-  volume: 0,
-  volumeQuote: 0,
-  volumeFee: 0,
-  apr: 0,
-  feeApr: 0,
-  priceMin: 0,
-  priceMax: 0,
-  rewardApr: [],
-};
-
-export function clmmComputeInfoToApiInfo(pool: ComputeClmmPoolInfo): ApiV3PoolInfoConcentratedItem {
-  return {
-    ...pool,
-    type: "Concentrated",
-    programId: pool.programId.toString(),
-    id: pool.id.toString(),
-    rewardDefaultInfos: [],
-    rewardDefaultPoolInfos: "Clmm",
-    price: pool.currentPrice.toNumber(),
-    mintAmountA: 0,
-    mintAmountB: 0,
-    feeRate: pool.ammConfig.tradeFeeRate,
-    openTime: pool.startTime.toString(),
-    tvl: 0,
-
-    day: mockRewardData,
-    week: mockRewardData,
-    month: mockRewardData,
-    pooltype: [],
-
-    farmUpcomingCount: 0,
-    farmOngoingCount: 0,
-    farmFinishedCount: 0,
-    burnPercent: 0,
-    config: {
-      ...pool.ammConfig,
-      id: pool.ammConfig.id.toString(),
-      defaultRange: 0,
-      defaultRangePoint: [],
-    },
-  };
-}
 

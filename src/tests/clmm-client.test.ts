@@ -97,7 +97,7 @@ describe('ClmmClient', () => {
       decimals: mint2.decimals,
     });
 
-    await sleep(10000)
+    await sleep(20000)
 
     const tickSpacing = 60
     const ammConfigId = 'HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs'
@@ -107,8 +107,7 @@ describe('ClmmClient', () => {
       mint1,
       mint2,
       ammConfigId: new PublicKey(ammConfigId),
-      // initialPrice = tokenB_amount / tokenA_amount; (1 tokenA = 2 tokenB)
-      initialPrice: new Decimal(2),
+      initialPrice: new Decimal(2), // initialPrice = tokenB_amount / tokenA_amount; (1 tokenA = 2 tokenB)
     })
 
     const { instructions, address } = insCreatePoolInfo
