@@ -16,6 +16,7 @@ export interface ReturnTypeMakeInstructions<T = Record<string, PublicKey>> {
 }
 export interface ClmmClientConfig {
   rpc: string;
+  clmmProgramId: PublicKey;
 }
 
 export interface ClmmConfigInfo {

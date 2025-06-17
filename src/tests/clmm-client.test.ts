@@ -1,16 +1,16 @@
 import { Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { ClmmClient } from '../ClmmClient';
 import { createSplToken, getLocalWallet } from './utils';
-import { getOrCreateAssociatedTokenAccount, mintTo, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { getPdaAmmConfigId } from '../utils/pda';
 import { CLMM_PROGRAM_ID } from '../constants/programIds';
 import Decimal from 'decimal.js';
-import { aw } from '@raydium-io/raydium-sdk-v2/lib/api-7daf490d';
 import { BN } from 'bn.js';
 import { TickUtils } from '../utils/tick';
+import { sleep } from '@raydium-io/raydium-sdk-v2';
 jest.setTimeout(300000);
 describe('ClmmClient', () => {
-  const client = new ClmmClient({ rpc: 'https://api.devnet.solana.com' })
+  const client = new ClmmClient({ rpc: 'https://api.devnet.solana.com', clmmProgramId: CLMM_PROGRAM_ID.dev });
   const connection = client.connection;
   const defaultAccount = getLocalWallet();
   const inputMint = Keypair.generate();
@@ -23,8 +23,8 @@ describe('ClmmClient', () => {
     // const test = client.getClmmPoolInfo('8pQZVCNSs3XZtzP1RHFwrt4hG9UrnFgQs9sSScnKFR6t')
     // console.log("🚀 ~ it ~ test:", test)
 
-    // const address = getPdaAmmConfigId(CLMM_PROGRAM_ID, 2)
-    // console.log("🚀 ~ it ~ publicKey:", address.publicKey.toString())
+    // const ammConfig = getPdaAmmConfigId(client.clmmProgramId, 2)
+    // console.log("🚀 ~ it ~ publicKey:", ammConfig.publicKey.toString())
 
     // const test = await client.getAmmConfigInfo('HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs')
     // console.log("🚀 ~ it ~ fund_owner:", test.fundOwner.toString())
@@ -85,7 +85,7 @@ describe('ClmmClient', () => {
       initialAmount: BigInt(1_000_000_000_000),
       mint: inputMint,
       payer: defaultAccount,
-      decimals: 6,
+      decimals: mint1.decimals,
     });
 
 
@@ -94,8 +94,10 @@ describe('ClmmClient', () => {
       initialAmount: BigInt(1_000_000_000_000),
       mint: outputMint,
       payer: defaultAccount,
-      decimals: 6,
+      decimals: mint2.decimals,
     });
+
+    await sleep(10000)
 
     const tickSpacing = 60
     const ammConfigId = 'HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs'
@@ -105,7 +107,7 @@ describe('ClmmClient', () => {
       mint1,
       mint2,
       ammConfigId: new PublicKey(ammConfigId),
-      // initialPrice = tokenB_amount / tokenA_amount; (1 tokenA = 3 tokenB)
+      // initialPrice = tokenB_amount / tokenA_amount; (1 tokenA = 2 tokenB)
       initialPrice: new Decimal(2),
     })
 
@@ -116,7 +118,7 @@ describe('ClmmClient', () => {
     const insOpenPositionFromBase = await client.openPositionFromBase({
       payer: defaultAccount.publicKey,
       poolInfo: {
-        programId: CLMM_PROGRAM_ID.toString(),
+        programId: client.clmmProgramId.toString(),
         id: address.poolId.toString(),
         mintA: address.mintA,
         mintB: address.mintB,
@@ -142,12 +144,12 @@ describe('ClmmClient', () => {
     const transaction = new Transaction().add(...instructions);
 
     transaction.add(...insOpenPositionFromBase.instructions);
-    const hash = await connection.sendTransaction(transaction, [defaultAccount, ...insOpenPositionFromBase.signers], {
+    const hashCreate = await connection.sendTransaction(transaction, [defaultAccount, ...insOpenPositionFromBase.signers], {
       skipPreflight: true
     });
-    console.log("🚀 ~ it ~ hash:", hash)
+    console.log("🚀 ~ it ~ hashCreate:", hashCreate)
 
-    await connection.confirmTransaction(hash, 'finalized');
+    await connection.confirmTransaction(hashCreate, 'finalized');
 
     // // add pool
 
@@ -156,7 +158,7 @@ describe('ClmmClient', () => {
     const insAddPoolInfo = await client.increasePositionFromLiquidity({
       payer: defaultAccount.publicKey,
       poolInfo: {
-        programId: CLMM_PROGRAM_ID.toString(),
+        programId: client.clmmProgramId.toString(),
         id: address.poolId.toString(),
         mintA: address.mintA,
         mintB: address.mintB,
@@ -189,7 +191,7 @@ describe('ClmmClient', () => {
     const insSwapPoolInfo = await client.swap({
       payer: defaultAccount.publicKey,
       poolInfo: {
-        programId: CLMM_PROGRAM_ID.toString(),
+        programId: client.clmmProgramId.toString(),
         id: address.poolId.toString(),
         mintA: address.mintA,
         mintB: address.mintB,
@@ -229,7 +231,7 @@ describe('ClmmClient', () => {
     const insRemovePoolInfo = await client.decreaseLiquidity({
       payer: defaultAccount.publicKey,
       poolInfo: {
-        programId: CLMM_PROGRAM_ID.toString(),
+        programId: client.clmmProgramId.toString(),
         id: address.poolId.toString(),
         mintA: address.mintA,
         mintB: address.mintB,

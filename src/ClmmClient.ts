@@ -1,7 +1,6 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { ClmmClientConfig, ClmmKeys, ComputeBudgetConfig, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, TxTipConfig } from "./type";
+import { ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem } from "./type";
 import { AmmConfigLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
-import { CLMM_PROGRAM_ID } from "./constants/programIds";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
@@ -13,6 +12,7 @@ import BN from "bn.js";
 
 export class ClmmClient {
   connection: Connection;
+  clmmProgramId: PublicKey;
 
   constructor(config: ClmmClientConfig) {
     this.connection = new Connection(config.rpc, {
@@ -21,6 +21,7 @@ export class ClmmClient {
         development: 'coin98',
       },
     });
+    this.clmmProgramId = config.clmmProgramId
   }
 
   public async getAmmConfigInfo(ammConfigId: string) {
@@ -77,9 +78,9 @@ export class ClmmClient {
     const extendMintAccount: PublicKey[] = [];
     const fetchAccounts: PublicKey[] = [];
     if (mintA.programId === TOKEN_2022_PROGRAM_ID.toBase58())
-      fetchAccounts.push(getPdaMintExAccount(CLMM_PROGRAM_ID, new PublicKey(mintA.address)).publicKey);
+      fetchAccounts.push(getPdaMintExAccount(this.clmmProgramId, new PublicKey(mintA.address)).publicKey);
     if (mintB.programId === TOKEN_2022_PROGRAM_ID.toBase58())
-      fetchAccounts.push(getPdaMintExAccount(CLMM_PROGRAM_ID, new PublicKey(mintB.address)).publicKey);
+      fetchAccounts.push(getPdaMintExAccount(this.clmmProgramId, new PublicKey(mintB.address)).publicKey);
     const extMintRes = await this.connection.getMultipleAccountsInfo(fetchAccounts);
 
     extMintRes.forEach((r, idx) => {
@@ -88,7 +89,7 @@ export class ClmmClient {
 
     const insInfo = await ClmmInstrument.createPoolInstructions({
       connection: this.connection,
-      programId: CLMM_PROGRAM_ID,
+      programId: this.clmmProgramId,
       owner,
       mintA,
       mintB,
@@ -446,12 +447,12 @@ export class ClmmClient {
     fundOwner: PublicKey;
   }) {
 
-    const ammConfigId = getPdaAmmConfigId(CLMM_PROGRAM_ID, index)
+    const ammConfigId = getPdaAmmConfigId(this.clmmProgramId, index)
 
     const insInfo = ClmmInstrument.createAmmConfigInstruction({
       ammConfigId: ammConfigId.publicKey,
       payer,
-      programId: CLMM_PROGRAM_ID,
+      programId: this.clmmProgramId,
       index,
       tickSpacing,
       feeRate,

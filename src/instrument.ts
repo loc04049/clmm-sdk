@@ -2,7 +2,7 @@ import { bool, publicKey, RENT_PROGRAM_ID, s32, struct, u128, u16, u32, u64, u8 
 import { Connection, Keypair, PublicKey, Signer, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import { ZERO } from "./utils/constants";
-import { ApiV3PoolInfoConcentratedItem, ApiV3Token } from "./api";
+import { ApiV3Token } from "./api";
 import { ClmmKeys, PoolInfoConcentratedItem, ReturnTypeMakeInstructions } from "./type";
 import { getPdaExBitmapAccount, getPdaMetadataKey, getPdaObservationAccount, getPdaPersonalPositionAddress, getPdaPoolId, getPdaPoolVaultId, getPdaProtocolPositionAddress, getPdaTickArrayAddress } from "./utils/pda";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -14,16 +14,7 @@ import { MEMO_PROGRAM_ID, METADATA_PROGRAM_ID } from "./constants/programIds";
 import { ClmmPositionLayout } from "./layout";
 
 const anchorDataBuf = {
-  createAmmConfig: [
-    137,
-    52,
-    237,
-    212,
-    215,
-    117,
-    108,
-    104
-  ],
+  createAmmConfig: [137, 52, 237, 212, 215, 117, 108, 104],
   createPool: [233, 146, 209, 142, 207, 104, 64, 188],
   initReward: [95, 135, 192, 196, 242, 129, 230, 68],
   setRewardEmissions: [112, 52, 167, 75, 32, 201, 211, 137],

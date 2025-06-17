@@ -1,7 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
 
-export const IS_DEV = true
-
 export enum Rounding {
     ROUND_DOWN,
     ROUND_HALF_UP,
