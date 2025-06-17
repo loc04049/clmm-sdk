@@ -13,7 +13,6 @@ export interface ReturnTypeMakeInstructions<T = Record<string, PublicKey>> {
   instructions: TransactionInstruction[];
   instructionTypes: string[];
   address: T;
-  lookupTableAddress: string[];
 }
 export interface ClmmClientConfig {
   rpc: string;
@@ -34,12 +33,8 @@ export interface CreateConcentratedPool {
   owner: PublicKey;
   mint1: ApiV3Token;
   mint2: ApiV3Token;
-  ammConfig: ClmmConfigInfo;
+  ammConfigId: PublicKey;
   initialPrice: Decimal;
-  computeBudgetConfig?: ComputeBudgetConfig;
-  txTipConfig?: TxTipConfig;
-  forerunCreate?: boolean;
-  getObserveState?: boolean;
 }
 
 
@@ -343,8 +338,6 @@ export interface OpenPositionFromBase {
   nft2022?: boolean;
   withMetadata?: "create" | "no-create";
   getEphemeralSigners?: (k: number) => any;
-  computeBudgetConfig?: ComputeBudgetConfig;
-  txTipConfig?: TxTipConfig;
 }
 
 type rewardDefaultInfo = {
@@ -371,7 +364,6 @@ export interface ClmmRewardType {
 }
 
 export type ClmmKeys = {
-  lookupTableAccount?: string;
   vault: { A: string; B: string };
   rewardInfos: ClmmRewardType[] | []
 };
@@ -381,15 +373,9 @@ export interface IncreasePositionFromLiquidity {
   poolInfo: PoolInfoConcentratedItem;
   poolKeys: ClmmKeys;
   ownerPosition: ClmmPositionLayout;
-  // ownerInfo: {
-  //   useSOLBalance?: boolean;
-  // };
   amountMaxA: BN;
   amountMaxB: BN;
-
   liquidity: BN;
-  computeBudgetConfig?: ComputeBudgetConfig;
-  txTipConfig?: TxTipConfig;
 }
 
 export interface DecreaseLiquidity {
@@ -397,20 +383,10 @@ export interface DecreaseLiquidity {
   poolInfo: PoolInfoConcentratedItem;
   poolKeys: ClmmKeys;
   ownerPosition: ClmmPositionLayout;
-  // ownerInfo: {
-  //   useSOLBalance?: boolean; // if has WSOL mint
-  //   closePosition?: boolean;
-  // };
-
   liquidity: BN;
   amountMinA: BN;
   amountMinB: BN;
   nftAccount?: PublicKey;
-
-  associatedOnly?: boolean;
-  checkCreateATAOwner?: boolean;
-  computeBudgetConfig?: ComputeBudgetConfig;
-  txTipConfig?: TxTipConfig;
   isClosePosition: boolean;
 }
 

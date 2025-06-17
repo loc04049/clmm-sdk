@@ -9,6 +9,7 @@ export enum Rounding {
 }
 
 export const InstructionType = {
+    ClmmInitConfig: "ClmmInitConfig",
     CreateAccount: "CreateAccount",
     ClmmCreatePool: "ClmmCreatePool",
     ClmmOpenPosition: "ClmmOpenPosition",

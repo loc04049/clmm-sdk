@@ -7,7 +7,6 @@ import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { getPdaAmmConfigId, getPdaMintExAccount } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
-import { WSOLMint } from "./constants";
 import { getOrCreateATAWithExtension } from "./utils/util";
 import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
 import BN from "bn.js";
@@ -35,11 +34,11 @@ export class ClmmClient {
   }
 
 
-  public async getPositionInfo(poolId: string) {
-    const poolPubkey = new PublicKey(poolId);
-    const accountInfo = await this.connection.getAccountInfo(poolPubkey);
+  public async getPositionInfo(personalPosition: string) {
+    const personalPositionPubKey = new PublicKey(personalPosition);
+    const accountInfo = await this.connection.getAccountInfo(personalPositionPubKey);
     if (!accountInfo) {
-      throw new Error('Pool not found on-chain');
+      throw new Error('Personal Position not found on-chain');
     }
     const positionInfo = PositionInfoLayout.decode(accountInfo.data);
     return positionInfo
@@ -54,29 +53,6 @@ export class ClmmClient {
     }
 
     const poolData = PoolInfoLayout.decode(accountInfo.data);
-
-    console.log({
-      vaultA: poolData.vaultA.toString(),
-      vaultB: poolData.vaultB.toString(),
-      tickSpacing: poolData.tickSpacing.toString(),
-      liquidity: poolData.liquidity.toString(),
-      sqrtPriceX64: poolData.sqrtPriceX64.toString(),
-      tickCurrent: poolData.tickCurrent.toString(),
-      feeGrowthGlobalX64A: poolData.feeGrowthGlobalX64A.toString(),
-      feeGrowthGlobalX64B: poolData.feeGrowthGlobalX64B.toString(),
-      protocolFeesTokenA: poolData.protocolFeesTokenA.toString(),
-      protocolFeesTokenB: poolData.protocolFeesTokenB.toString(),
-      swapInAmountTokenA: poolData.swapInAmountTokenA.toString(),
-      swapOutAmountTokenB: poolData.swapOutAmountTokenB.toString(),
-      swapInAmountTokenB: poolData.swapInAmountTokenB.toString(),
-      swapOutAmountTokenA: poolData.swapOutAmountTokenA.toString(),
-      status: poolData.status.toString(),
-      mintDecimalsA: poolData.mintDecimalsA.toString(),
-      mintDecimalsB: poolData.mintDecimalsB.toString(),
-      mintA: poolData.mintA.toString(),
-      mintB: poolData.mintB.toString(),
-    });
-
     return poolData;
   }
 
@@ -87,12 +63,8 @@ export class ClmmClient {
       owner,
       mint1,
       mint2,
-      ammConfig,
+      ammConfigId,
       initialPrice,
-      computeBudgetConfig,
-      forerunCreate,
-      getObserveState,
-      txTipConfig,
     } = props;
     const [mintA, mintB, initPrice] = new BN(new PublicKey(mint1.address).toBuffer()).gt(
       new BN(new PublicKey(mint2.address).toBuffer()),
@@ -120,9 +92,8 @@ export class ClmmClient {
       owner,
       mintA,
       mintB,
-      ammConfigId: ammConfig.id,
+      ammConfigId,
       initialPriceX64,
-      forerunCreate: !getObserveState && forerunCreate,
       extendMintAccount,
     });
     return insInfo
@@ -141,11 +112,8 @@ export class ClmmClient {
     nft2022,
     withMetadata = "create",
     getEphemeralSigners,
-    computeBudgetConfig,
-    txTipConfig,
   }: OpenPositionFromBase) {
 
-    // this.scope.checkOwner();
     const instructions: TransactionInstruction[] = [];
 
     const ownerTokenAccountA = await getOrCreateATAWithExtension({
@@ -187,8 +155,6 @@ export class ClmmClient {
       nft2022,
     });
 
-    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    // txBuilder.addTipInstruction(txTipConfig);
 
     instructions.push(...insInfo.instructions);
 
@@ -206,14 +172,9 @@ export class ClmmClient {
       amountMaxA,
       amountMaxB,
       liquidity,
-      computeBudgetConfig,
-      txTipConfig,
     } = props;
 
     const instructions: TransactionInstruction[] = [];
-
-    // let ownerTokenAccountA: PublicKey | undefined = undefined;
-    // let ownerTokenAccountB: PublicKey | undefined = undefined;
 
     // const mintAUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintA.address === WSOLMint.toString();
     // const mintBUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintB.address === WSOLMint.toString();
@@ -252,8 +213,6 @@ export class ClmmClient {
       amountMaxB,
       nft2022: (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(TOKEN_2022_PROGRAM_ID),
     });
-    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    // txBuilder.addTipInstruction(txTipConfig);
     instructions.push(...ins.instructions);
 
     return { ...ins, instructions }
@@ -270,10 +229,6 @@ export class ClmmClient {
       amountMinA,
       amountMinB,
       liquidity,
-      associatedOnly = true,
-      checkCreateATAOwner = false,
-      computeBudgetConfig,
-      txTipConfig,
       isClosePosition
     } = props;
 
@@ -303,7 +258,7 @@ export class ClmmClient {
       allowOwnerOffCurve: true,
     })
 
-    // const rewardAccounts: PublicKey[] = [];
+    const rewardAccounts: PublicKey[] = [];
     // for (const itemReward of poolInfo.rewardDefaultInfos) {
     //   const rewardUseSOLBalance = ownerInfo.useSOLBalance && itemReward.mint.address === WSOLMint.toString();
 
@@ -344,7 +299,7 @@ export class ClmmClient {
         wallet: payer,
         tokenAccountA: ownerTokenAccountA!,
         tokenAccountB: ownerTokenAccountB!,
-        rewardAccounts: [],
+        rewardAccounts,
       },
       liquidity,
       amountMinA,
@@ -352,11 +307,6 @@ export class ClmmClient {
       nft2022,
     });
 
-
-    // txBuilder.addInstruction({
-    //   instructions: decreaseInsInfo.instructions,
-    //   instructionTypes: [InstructionType.ClmmDecreasePosition],
-    // });
 
     instructions.push(...decreaseInsInfo.instructions);
 
@@ -371,13 +321,9 @@ export class ClmmClient {
       });
 
       instructions.push(...closeInsInfo.instructions);
-
       extInfo = { ...extInfo, ...closeInsInfo.address };
+
     }
-
-    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    // txBuilder.addTipInstruction(txTipConfig);
-
     return {
       instructions,
       address: extInfo
@@ -388,16 +334,11 @@ export class ClmmClient {
     poolInfo,
     poolKeys,
     ownerPosition,
-    computeBudgetConfig,
-    txTipConfig,
     payer,
   }: {
     poolInfo: PoolInfoConcentratedItem;
     poolKeys: ClmmKeys;
     ownerPosition: ClmmPositionLayout;
-    computeBudgetConfig?: ComputeBudgetConfig;
-    txTipConfig?: TxTipConfig;
-    feePayer?: PublicKey;
     payer: PublicKey;
   }) {
     const ins = ClmmInstrument.closePositionInstructions({
@@ -407,8 +348,6 @@ export class ClmmClient {
       ownerPosition,
       nft2022: (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(TOKEN_2022_PROGRAM_ID),
     });
-    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    // txBuilder.addTipInstruction(txTipConfig);
     return ins
   }
 
@@ -420,10 +359,7 @@ export class ClmmClient {
     amountOutMin,
     priceLimit,
     observationId,
-    // ownerInfo,
     remainingAccounts,
-    computeBudgetConfig,
-    txTipConfig,
     payer,
   }: {
     poolInfo: PoolInfoConcentratedItem;
@@ -433,13 +369,7 @@ export class ClmmClient {
     amountOutMin: BN;
     priceLimit?: Decimal;
     observationId: PublicKey;
-    // ownerInfo: {
-    //   useSOLBalance?: boolean;
-    //   feePayer?: PublicKey;
-    // };
     remainingAccounts: PublicKey[];
-    computeBudgetConfig?: ComputeBudgetConfig;
-    txTipConfig?: TxTipConfig;
     payer: PublicKey;
   }) {
 
@@ -496,9 +426,6 @@ export class ClmmClient {
     })
 
     return swapInsInfo
-
-    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    // txBuilder.addTipInstruction(txTipConfig);
   }
 
   public async createAmmConfig({
@@ -519,10 +446,10 @@ export class ClmmClient {
     fundOwner: PublicKey;
   }) {
 
-    const ammConfig = getPdaAmmConfigId(CLMM_PROGRAM_ID, index)
+    const ammConfigId = getPdaAmmConfigId(CLMM_PROGRAM_ID, index)
 
-    const ins = ClmmInstrument.createAmmConfigInstruction({
-      ammConfig: ammConfig.publicKey,
+    const insInfo = ClmmInstrument.createAmmConfigInstruction({
+      ammConfigId: ammConfigId.publicKey,
       payer,
       programId: CLMM_PROGRAM_ID,
       index,
@@ -530,9 +457,7 @@ export class ClmmClient {
       feeRate,
       fundOwner
     })
-    // txBuilder.addCustomComputeBudget(computeBudgetConfig);
-    // txBuilder.addTipInstruction(txTipConfig);
-    return ins
+    return insInfo
   }
 
 }

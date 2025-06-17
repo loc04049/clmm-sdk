@@ -51,7 +51,7 @@ interface CreatePoolInstruction {
 export class ClmmInstrument {
 
   static createAmmConfigInstruction({
-    ammConfig,
+    ammConfigId,
     payer,
     programId,
     index,
@@ -59,7 +59,7 @@ export class ClmmInstrument {
     feeRate,
     fundOwner
   }: {
-    ammConfig: PublicKey;
+    ammConfigId: PublicKey;
     payer: PublicKey;
     programId: PublicKey;
     index: number;
@@ -71,13 +71,13 @@ export class ClmmInstrument {
     };
     fundOwner: PublicKey;
 
-  }): TransactionInstruction {
+  }) {
     const dataLayout = struct(
       [
         u16('index'),
         u16('tickSpacing'),
-        u32('protocolFeeRate'),
         u32('tradeFeeRate'),
+        u32('protocolFeeRate'),
         u32('fundFeeRate'),
         publicKey('fundOwner'),
       ])
@@ -87,8 +87,8 @@ export class ClmmInstrument {
       {
         index,
         tickSpacing,
-        protocolFeeRate: feeRate.protocolFeeRate,
         tradeFeeRate: feeRate.tradeFeeRate,
+        protocolFeeRate: feeRate.protocolFeeRate,
         fundFeeRate: feeRate.fundFeeRate,
         fundOwner
       },
@@ -98,18 +98,25 @@ export class ClmmInstrument {
 
     const keys = [
       { pubkey: payer, isSigner: true, isWritable: true },
-      { pubkey: ammConfig, isSigner: false, isWritable: true },
+      { pubkey: ammConfigId, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ];
 
 
     const aData = Buffer.from([...anchorDataBuf.createAmmConfig, ...data]);
 
-    return new TransactionInstruction({
+    const ins = new TransactionInstruction({
       keys,
       programId,
       data: aData
     });
+
+    return {
+      signers: [],
+      instructions: ins,
+      instructionTypes: [InstructionType.ClmmInitConfig],
+      address: { ammConfigId, fundOwner, owner: payer },
+    }
   }
 
   static createPoolInstruction(
@@ -208,7 +215,6 @@ export class ClmmInstrument {
       instructions: ins,
       instructionTypes: [InstructionType.CreateAccount, InstructionType.ClmmCreatePool],
       address: { poolId, observationId, exBitmapAccount, mintAVault, mintBVault, mintA, mintB },
-      lookupTableAddress: [],
     };
   }
 
@@ -358,7 +364,6 @@ export class ClmmInstrument {
       instructions: [ins],
       signers,
       instructionTypes: [InstructionType.ClmmOpenPosition],
-      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
     };
   }
 
@@ -655,7 +660,6 @@ export class ClmmInstrument {
       signers: [],
       instructions: [ins],
       instructionTypes: [InstructionType.ClmmIncreasePosition],
-      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
     };
   }
 
@@ -841,7 +845,6 @@ export class ClmmInstrument {
       signers: [],
       instructions: ins,
       instructionTypes: [InstructionType.ClmmDecreasePosition],
-      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
     };
   }
 
@@ -970,7 +973,6 @@ export class ClmmInstrument {
       signers: [],
       instructions: ins,
       instructionTypes: [InstructionType.ClmmClosePosition],
-      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
     };
   }
 
@@ -1070,7 +1072,6 @@ export class ClmmInstrument {
       signers: [],
       instructions: ins,
       instructionTypes: [InstructionType.ClmmSwapBaseIn],
-      lookupTableAddress: poolKeys.lookupTableAccount ? [poolKeys.lookupTableAccount] : [],
       address: {},
     };
   }

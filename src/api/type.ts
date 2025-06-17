@@ -25,10 +25,6 @@ export interface TransferFeeDataBaseType {
   };
 }
 
-export type ExtensionsItem = {
-  coingeckoId?: string;
-  feeConfig?: TransferFeeDataBaseType;
-};
 
 export type ApiV3Token = {
   chainId: string;
@@ -38,10 +34,6 @@ export type ApiV3Token = {
   symbol: string;
   name: string;
   decimals: number;
-  // tags: string[]; // "hasFreeze" | "hasTransferFee" | "token-2022" | "community" | "unknown" ..etc
-  // extensions: ExtensionsItem;
-  freezeAuthority?: string;
-  mintAuthority?: string;
 };
 
 export interface ApiV3PoolInfoBaseItem {
@@ -98,15 +90,4 @@ export interface ApiClmmConfigV3 {
   description: string;
   defaultRange: number;
   defaultRangePoint: number[];
-}
-
-
-interface Base {
-  programId: string;
-  id: string;
-  mintA: ApiV3Token;
-  mintB: ApiV3Token;
-  lookupTableAccount?: string;
-  openTime: string;
-  vault: { A: string; B: string };
 }
