@@ -425,10 +425,4 @@ export class TickUtils {
 
     return baseIn ? { tick, price: tickPrice } : { tick, price: new Decimal(1).div(tickPrice) };
   }
-
-  public static getTickLowerUpper(price: number, tickSpacing: number): number {
-    const rawTick = Math.floor(Math.log(price) / Math.log(1.0001));
-    const tickLower = Math.floor(rawTick / tickSpacing) * tickSpacing;
-    return tickLower;
-  }
 }

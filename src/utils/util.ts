@@ -1,6 +1,8 @@
 import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
+import { TokenInfo } from "../type";
+import Decimal from "decimal.js";
 export function u16ToBytes(num: number): Uint8Array {
   const arr = new ArrayBuffer(2);
   const view = new DataView(arr);
@@ -137,5 +139,24 @@ export function getATAAddress(
     [owner.toBuffer(), (programId ?? TOKEN_PROGRAM_ID).toBuffer(), mint.toBuffer()],
     new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"),
   );
+}
+
+
+export function getTokenATokenBAndPrice(
+  mint1: TokenInfo,
+  mint2: TokenInfo,
+  initialPrice: Decimal
+) {
+  const [mintA, mintB, price] = new BN(new PublicKey(mint1.address).toBuffer()).gt(
+    new BN(new PublicKey(mint2.address).toBuffer()),
+  )
+    ? [mint2, mint1, new Decimal(1).div(initialPrice)]
+    : [mint1, mint2, initialPrice];
+
+  return {
+    mintA,
+    mintB,
+    price
+  }
 }
 

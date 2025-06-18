@@ -2,6 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 
 export const CLMM_PROGRAM_ID = {
   dev: new PublicKey('84gNhdbya7FUCqEDx8aV2s8XcpJDUmJ99uDjvSPSFhSf'),
+  devContract: new PublicKey('8RN24n7H7K4uQjTAYFKvtxAtN9zxz8YfwVghmb6u8U74'),
   main: new PublicKey('CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK'),
 }
 // ? new PublicKey('devi51mZmdwUJGU9hjN27vEz64Gps7uUefqxg27EAtH')

@@ -436,9 +436,9 @@ export class ClmmClient {
     index: number;
     tickSpacing: number;
     feeRate: {
-      protocolFeeRate: number;
-      tradeFeeRate: number;
-      fundFeeRate: number;
+      tradeFeeRate: number; //  Total swap fee (Fee Tier) Example: 2500 / 1_000_000 = 0.25%
+      protocolFeeRate: number; // Share of tradeFeeRate sent to protocol
+      fundFeeRate: number; // Share of tradeFeeRate sent to fundOwner 
     }
     fundOwner: PublicKey;
   }) {
