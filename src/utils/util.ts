@@ -145,7 +145,7 @@ export function getATAAddress(
 export function getTokenATokenBAndPrice(
   mint1: TokenInfo,
   mint2: TokenInfo,
-  initialPrice: Decimal
+  initialPrice = new Decimal(0)
 ) {
   const [mintA, mintB, price] = new BN(new PublicKey(mint1.address).toBuffer()).gt(
     new BN(new PublicKey(mint2.address).toBuffer()),
