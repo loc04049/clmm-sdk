@@ -355,6 +355,7 @@ type rewardDefaultInfo = {
 }
 
 export type PoolInfoConcentratedItem = {
+  price: number
   programId: string;
   id: string;
   mintA: TokenInfo;

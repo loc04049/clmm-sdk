@@ -1088,7 +1088,7 @@ export class PoolUtils {
     epochInfo,
     amountHasFee,
   }: {
-    poolInfo: ApiV3PoolInfoConcentratedItem;
+    poolInfo: PoolInfoConcentratedItem;
     inputA: boolean;
     tickLower: number;
     tickUpper: number;
@@ -1162,7 +1162,7 @@ export class PoolUtils {
     add,
   }: {
     epochInfo: EpochInfo;
-    poolInfo: ApiV3PoolInfoConcentratedItem;
+    poolInfo: PoolInfoConcentratedItem;
     tickLower: number;
     tickUpper: number;
     liquidity: BN;
