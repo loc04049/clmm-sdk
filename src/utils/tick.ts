@@ -399,6 +399,29 @@ export class TickUtils {
       : { tick, price: new Decimal(1).div(tickPrice), tickSqrtPriceX64 };
   }
 
+  public static getTickPriceDecimals({
+    mintDecimalsA,
+    mintDecimalsB,
+    tick,
+    baseIn,
+  }: {
+    mintDecimalsA: number;
+    mintDecimalsB: number;
+    tick: number;
+    baseIn: boolean;
+  }): ReturnTypeGetTickPrice {
+    const tickSqrtPriceX64 = SqrtPriceMath.getSqrtPriceX64FromTick(tick);
+    const tickPrice = SqrtPriceMath.sqrtPriceX64ToPrice(
+      tickSqrtPriceX64,
+      mintDecimalsA,
+      mintDecimalsB,
+    );
+
+    return baseIn
+      ? { tick, price: tickPrice, tickSqrtPriceX64 }
+      : { tick, price: new Decimal(1).div(tickPrice), tickSqrtPriceX64 };
+  }
+
   public static getPriceAndTick({
     poolInfo,
     price,

@@ -2,6 +2,13 @@ import { blob, bool, i128, i64, publicKey, s32, seq, struct, u128, u16, u32, u64
 import { TICK_ARRAY_SIZE } from "./utils/tick";
 import { EXTENSION_TICKARRAY_BITMAP_SIZE } from "./utils/tickarrayBitmap";
 
+
+export const ExTickArrayBitmapLayout = struct([
+  seq(u64(), 256, "positiveTickArrayBitmap"), // 256 * 8 = 2048 bytes
+  seq(u64(), 256, "negativeTickArrayBitmap"), // 256 * 8 = 2048 bytes
+]);
+
+
 export const RewardInfo = struct([
   u8("rewardState"),
   u64("openTime"),
@@ -114,6 +121,8 @@ export const TickArrayBitmapExtensionLayout = struct([
 ]);
 
 export type ClmmPositionLayout = ReturnType<typeof PositionInfoLayout.decode>;
+export type ClmmPoolLayout = ReturnType<typeof PoolInfoLayout.decode>;
+
 
 export const splAccountLayout = struct([
   publicKey("mint"),

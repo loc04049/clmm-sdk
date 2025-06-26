@@ -79,7 +79,7 @@ export class TickQuery {
     } = this.nextInitializedTickInOneArray(programId, poolId, tickArrayCache, tickIndex, tickSpacing, zeroForOne);
     while (nextTick == undefined || nextTick.liquidityGross.lten(0)) {
       tickArrayStartTickIndex = TickUtils.getNextTickArrayStartIndex(tickArrayStartTickIndex, tickSpacing, zeroForOne);
-      if (this.checkIsValidStartIndex(tickArrayStartTickIndex, tickSpacing)) {
+      if (!this.checkIsValidStartIndex(tickArrayStartTickIndex, tickSpacing)) {
         throw new Error("No enough initialized tickArray");
       }
       const cachedTickArray = tickArrayCache[tickArrayStartTickIndex];

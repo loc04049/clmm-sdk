@@ -1,4 +1,12 @@
+import { AnchorProvider } from "@coral-xyz/anchor";
+import { Connection } from "@solana/web3.js";
 import BN from "bn.js";
+import get from "lodash/get";
+
+export enum SwapMode {
+    ExactIn = 'ExactIn',
+    ExactOut = 'ExactOut',
+}
 
 export const ZERO = new BN(0);
 export const ONE = new BN(1);
@@ -22,8 +30,8 @@ export const MAX_SQRT_PRICE_X64: BN = new BN("79226673521066979257578248091");
 export const MIN_SQRT_PRICE_X64_ADD_ONE: BN = new BN("4295048017");
 export const MAX_SQRT_PRICE_X64_SUB_ONE: BN = new BN("79226673521066979257578248090");
 
-// export const MIN_TICK_ARRAY_START_INDEX = -307200;
-// export const MAX_TICK_ARRAY_START_INDEX = 306600;
+export const MIN_TICK_ARRAY_START_INDEX = -307200;
+export const MAX_TICK_ARRAY_START_INDEX = 306600;
 
 export const BIT_PRECISION = 16;
 export const LOG_B_2_X32 = "59543866431248";
@@ -139,3 +147,16 @@ export const mockV3CreatePoolInfo = {
 };
 
 export const U64_IGNORE_RANGE = new BN("18446744073700000000");
+
+export const getAnchorProvider = (rpcURL: string) => {
+    const connection = new Connection(rpcURL, {
+        commitment: 'confirmed',
+        httpHeaders: {
+            development: 'coin98',
+        },
+    });
+    const wallet = get(window, 'solana') || get(window, 'coin98.sol');
+    if (!wallet) throw new Error('No wallet found');
+
+    return new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+};

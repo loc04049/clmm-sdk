@@ -1139,4 +1139,71 @@ export class ClmmInstrument {
     });
   }
 
+  static makeSwapBaseOutInstructions({
+    poolInfo,
+    poolKeys,
+    observationId,
+    ownerInfo,
+    outputMint,
+    amountOut,
+    amountInMax,
+    sqrtPriceLimitX64,
+    remainingAccounts,
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    observationId: PublicKey;
+
+    ownerInfo: {
+      wallet: PublicKey;
+      tokenAccountA: PublicKey;
+      tokenAccountB: PublicKey;
+    };
+
+    outputMint: PublicKey;
+
+    amountOut: BN;
+    amountInMax: BN;
+    sqrtPriceLimitX64: BN;
+
+    remainingAccounts: PublicKey[];
+  }): ReturnTypeMakeInstructions {
+    const [programId, id] = [new PublicKey(poolInfo.programId), new PublicKey(poolInfo.id)];
+    const [mintAVault, mintBVault] = [new PublicKey(poolKeys.vault.A), new PublicKey(poolKeys.vault.B)];
+    const [mintA, mintB] = [new PublicKey(poolInfo.mintA.address), new PublicKey(poolInfo.mintB.address)];
+    const isInputMintA = poolInfo.mintA.address === outputMint.toBase58();
+    const ins = [
+      this.swapInstruction(
+        programId,
+        ownerInfo.wallet,
+
+        id,
+        new PublicKey(poolInfo.config.id),
+
+        isInputMintA ? ownerInfo.tokenAccountB : ownerInfo.tokenAccountA,
+        isInputMintA ? ownerInfo.tokenAccountA : ownerInfo.tokenAccountB,
+
+        isInputMintA ? mintBVault : mintAVault,
+        isInputMintA ? mintAVault : mintBVault,
+
+        isInputMintA ? mintB : mintA,
+        isInputMintA ? mintA : mintB,
+
+        remainingAccounts,
+        observationId,
+        amountOut,
+        amountInMax,
+        sqrtPriceLimitX64,
+        false,
+        getPdaExBitmapAccount(programId, id).publicKey,
+      ),
+    ];
+    return {
+      signers: [],
+      instructions: ins,
+      instructionTypes: [InstructionType.ClmmSwapBaseOut],
+      address: {},
+    };
+  }
+
 }

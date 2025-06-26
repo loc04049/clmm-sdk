@@ -15,6 +15,7 @@ export const InstructionType = {
     ClmmDecreasePosition: "ClmmDecreasePosition",
     ClmmClosePosition: "ClmmClosePosition",
     ClmmSwapBaseIn: "ClmmSwapBaseIn",
+    ClmmSwapBaseOut: "ClmmSwapBaseOut",
 }
 
 export const WSOLMint = new PublicKey("So11111111111111111111111111111111111111112");

@@ -1,8 +1,14 @@
 import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { AccountInfo, Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
-import { TokenInfo } from "../type";
+import { TickArrayBitmapExtensionType, TickArrayCache, TokenInfo } from "../type";
 import Decimal from "decimal.js";
+import { TICK_ARRAY_SIZE, TickUtils } from "./tick";
+import { ClmmPoolLayout, ExTickArrayBitmapLayout } from "../layout";
+import { FETCH_TICKARRAY_COUNT } from "./tickQuery";
+import { getPdaTickArrayAddress } from "./pda";
+import { TickUtilsV1 } from "./tickV1";
+import { BorshAccountsCoder } from "@project-serum/anchor";
 export function u16ToBytes(num: number): Uint8Array {
   const arr = new ArrayBuffer(2);
   const view = new DataView(arr);
@@ -159,4 +165,66 @@ export function getTokenATokenBAndPrice(
     price
   }
 }
+
+export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, programId: PublicKey): PublicKey[] => {
+  const tickArrayBitmap = TickUtils.mergeTickArrayBitmap(poolState.tickArrayBitmap);
+  const currentTickArrayStartIndex = TickUtils.getTickArrayStartIndexByTick(
+    poolState.tickCurrent,
+    poolState.tickSpacing
+  );
+
+  const tickArrayPks: PublicKey[] = [];
+  const startIndexArray = TickUtilsV1.getInitializedTickArrayInRange(
+    tickArrayBitmap,
+    poolState.tickSpacing,
+    currentTickArrayStartIndex,
+    Math.floor(FETCH_TICKARRAY_COUNT / 2)
+  );
+  for (const itemIndex of startIndexArray) {
+    const { publicKey: tickArrayAddress } = getPdaTickArrayAddress(programId, address, itemIndex);
+    tickArrayPks.push(tickArrayAddress);
+  }
+  return tickArrayPks;
+}
+
+export const getTickArrayCache = async ({
+  poolInfo,
+  poolId,
+  connection,
+  clmmProgramId,
+  coder
+}: {
+  poolInfo: ClmmPoolLayout;
+  poolId: PublicKey;
+  connection: Connection;
+  clmmProgramId: PublicKey;
+  coder: BorshAccountsCoder;
+}) => {
+
+  const tickArrayPks = getTickArrayPks(poolId, poolInfo, clmmProgramId);
+  const infos = await connection.getMultipleAccountsInfo(tickArrayPks);
+
+  const accountInfoMap = new Map<string, AccountInfo<Buffer>>();
+  tickArrayPks.forEach((pk, i) => {
+    const info = infos[i];
+    if (info) {
+      accountInfoMap.set(pk.toBase58(), info);
+    }
+  });
+
+
+  const tickArrayCache: TickArrayCache = {};
+  for (const tickArrayPk of tickArrayPks) {
+    const tickArrayAccountInfo = accountInfoMap.get(tickArrayPk.toBase58());
+    if (!tickArrayAccountInfo) continue;
+    const tickArray = coder.decode('tickArrayState', tickArrayAccountInfo.data);
+    tickArrayCache[tickArray.startTickIndex] = {
+      ...tickArray,
+      address: tickArrayPk,
+    };
+  }
+
+  return tickArrayCache
+}
+
 

@@ -1,18 +1,23 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem } from "./type";
+import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
 import { AmmConfigLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { getPdaAmmConfigId, getPdaMintExAccount } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
-import { getOrCreateATAWithExtension } from "./utils/util";
-import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
+import { getOrCreateATAWithExtension, getTickArrayCache } from "./utils/util";
+import { getAnchorProvider, MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
 import BN from "bn.js";
+import { IDL } from "./idl/amm_v3";
+import { BorshAccountsCoder, Idl } from '@project-serum/anchor';
+import { PoolUtilsV1 } from "./utils/poolV1";
+import { TickUtils } from "./utils/tick";
 
 export class ClmmClient {
   connection: Connection;
   clmmProgramId: PublicKey;
+  coder: BorshAccountsCoder;
 
   constructor(config: ClmmClientConfig) {
     this.connection = new Connection(config.rpc, {
@@ -22,6 +27,7 @@ export class ClmmClient {
       },
     });
     this.clmmProgramId = config.clmmProgramId
+    this.coder = new BorshAccountsCoder(IDL as Idl);
   }
 
   public async getAmmConfigInfo(ammConfigId: string) {
@@ -33,7 +39,6 @@ export class ClmmClient {
     const configInfo = AmmConfigLayout.decode(accountInfo.data);
     return configInfo
   }
-
 
   public async getPositionInfo(personalPosition: string) {
     const personalPositionPubKey = new PublicKey(personalPosition);
@@ -425,6 +430,85 @@ export class ClmmClient {
     return swapInsInfo
   }
 
+  public async swapBaseOut({
+    poolInfo,
+    poolKeys,
+    outputMint,
+    amountOut,
+    amountInMax,
+    priceLimit,
+    observationId,
+    remainingAccounts,
+    payer
+  }: {
+    poolInfo: PoolInfoConcentratedItem;
+    poolKeys: ClmmKeys;
+    outputMint: string | PublicKey;
+    amountOut: BN;
+    amountInMax: BN;
+    priceLimit?: Decimal;
+    observationId: PublicKey;
+    remainingAccounts: PublicKey[];
+    payer: PublicKey;
+  }) {
+    const instructions: TransactionInstruction[] = [];
+    const baseIn = outputMint.toString() === poolInfo.mintB.address;
+    // const mintAUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintA.address === WSOLMint.toBase58();
+    // const mintBUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintB.address === WSOLMint.toBase58();
+
+    let sqrtPriceLimitX64: BN;
+    if (!priceLimit || priceLimit.equals(new Decimal(0))) {
+      sqrtPriceLimitX64 =
+        outputMint.toString() === poolInfo.mintB.address
+          ? MIN_SQRT_PRICE_X64.add(new BN(1))
+          : MAX_SQRT_PRICE_X64.sub(new BN(1));
+    } else {
+      sqrtPriceLimitX64 = SqrtPriceMath.priceToSqrtPriceX64(
+        priceLimit,
+        poolInfo.mintA.decimals,
+        poolInfo.mintB.decimals,
+      );
+    }
+    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintA.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintA.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+      payer,
+      connection: this.connection,
+      owner: payer,
+      mint: new PublicKey(poolInfo.mintB.address),
+      instruction: instructions,
+      programId: new PublicKey(poolInfo.mintB.programId),
+      allowOwnerOffCurve: true,
+    })
+
+    const swapInsInfo = ClmmInstrument.makeSwapBaseOutInstructions({
+      poolInfo,
+      poolKeys,
+      observationId,
+      ownerInfo: {
+        wallet: payer,
+        tokenAccountA: ownerTokenAccountA!,
+        tokenAccountB: ownerTokenAccountB!,
+      },
+      outputMint: new PublicKey(outputMint),
+      amountOut,
+      amountInMax,
+      sqrtPriceLimitX64,
+      remainingAccounts,
+    })
+
+    return swapInsInfo
+
+  }
+
   public async createAmmConfig({
     payer,
     index,
@@ -455,6 +539,128 @@ export class ClmmClient {
       fundOwner
     })
     return insInfo
+  }
+
+
+  public async getQuote(quoteParams: QuoteParams) {
+    const { poolId, swapMode, poolInfo, amount, slippage, priceLimit = new Decimal(0), ammConfig } = quoteParams
+
+    const currentPrice = TickUtils.getTickPriceDecimals({
+      mintDecimalsA: poolInfo.mintDecimalsA,
+      mintDecimalsB: poolInfo.mintDecimalsB,
+      tick: poolInfo.tickCurrent,
+      baseIn: true,
+    })
+
+    const poolInFoSwap: AmmV3PoolInfo = {
+      id: poolId,
+      mintA: {
+        mint: poolInfo.mintA,
+        decimals: poolInfo.mintDecimalsA,
+        vault: poolInfo.vaultA,
+      },
+      mintB: {
+        mint: poolInfo.mintB,
+        decimals: poolInfo.mintDecimalsB,
+        vault: poolInfo.vaultB,
+      },
+      ammConfig,
+      currentPrice: currentPrice.price,
+      programId: this.clmmProgramId,
+      tickSpacing: ammConfig.tickSpacing,
+      liquidity: poolInfo.liquidity,
+      sqrtPriceX64: poolInfo.sqrtPriceX64,
+      tickCurrent: poolInfo.tickCurrent,
+      tickArrayBitmap: poolInfo.tickArrayBitmap,
+      observationId: poolInfo.observationId,
+    }
+
+    const tickArrayCache = await getTickArrayCache({
+      poolId: poolId,
+      poolInfo,
+      connection: this.connection,
+      clmmProgramId: this.clmmProgramId,
+      coder: this.coder,
+    })
+
+    if (swapMode === 'ExactIn') {
+      try {
+        const { amountOut, minAmountOut, fee, priceImpact, executionPrice, currentPrice, remainingAccounts } = PoolUtilsV1.computeAmountOut({
+          poolInfo: poolInFoSwap,
+          tickArrayCache: tickArrayCache,
+          amountIn: amount,
+          baseMint: poolInfo.mintA,
+          slippage,
+          priceLimit,
+        });
+
+        return {
+          notEnoughLiquidity: false,
+          inAmount: amount,
+          outAmount: amountOut,
+          slippageAmount: minAmountOut,
+          executionPrice: executionPrice,
+          currentPrice,
+          feeAmount: fee,
+          priceLimit,
+          priceImpact,
+          remainingAccounts
+        };
+      } catch (e) {
+        console.log("🚀 ~ ClmmClient ~ getQuote ~ e:", e)
+        return {
+          notEnoughLiquidity: true,
+          inAmount: amount,
+          outAmount: new BN(0),
+          slippageAmount: new BN(0),
+          executionPrice: new Decimal(0),
+          currentPrice: new Decimal(0),
+          feeAmount: new BN(0),
+          priceLimit,
+          priceImpact: new Decimal(0),
+          remainingAccounts: []
+        };
+      }
+    } else {
+      try {
+        const { amountIn, maxAmountIn, fee, priceImpact, executionPrice, currentPrice, remainingAccounts } = PoolUtilsV1.computeAmountIn({
+          poolInfo: poolInFoSwap,
+          tickArrayCache: tickArrayCache,
+          amountOut: amount,
+          baseMint: poolInfo.mintB,
+          slippage,
+          priceLimit,
+        });
+
+        return {
+          notEnoughLiquidity: false,
+          inAmount: amountIn,
+          outAmount: amount,
+          slippageAmount: maxAmountIn,
+          executionPrice: executionPrice,
+          currentPrice,
+          feeAmount: fee,
+          priceLimit,
+          priceImpact,
+          remainingAccounts
+        };
+      } catch (error) {
+        console.log("🚀 ~ ClmmClient ~ getQuote ~ error:", error)
+        return {
+          notEnoughLiquidity: true,
+          inAmount: amount,
+          outAmount: new BN(0),
+          slippageAmount: new BN(0),
+          executionPrice: new Decimal(0),
+          currentPrice: new Decimal(0),
+          feeAmount: new BN(0),
+          priceLimit,
+          priceImpact: new Decimal(0),
+          remainingAccounts: []
+        };
+      }
+
+    }
   }
 
 }

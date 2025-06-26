@@ -1,11 +1,12 @@
 import { EpochInfo, Keypair, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import Decimal from "decimal.js";
-import { ClmmPositionLayout, PoolInfoLayout } from "./layout";
+import { ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout } from "./layout";
 import { GetStructureSchema, Percent, Price, TokenAmount, TransferAmountFee } from "@raydium-io/raydium-sdk-v2";
 import { TickArray } from "./utils/tick";
 import { ApiV3PoolInfoConcentratedItem } from "./api";
 import { splAccountLayout } from "./layout";
+import { SwapMode } from "./utils/constants";
 
 
 export type TokenInfo = {
@@ -36,7 +37,6 @@ export interface ClmmConfigInfo {
   tickSpacing: number;
   fundFeeRate: number;
   fundOwner: string;
-  description: string;
 }
 
 export interface CreateConcentratedPool {
@@ -210,36 +210,18 @@ export interface ClmmPoolRewardLayoutInfo {
 
 export interface ComputeClmmPoolInfo {
   id: PublicKey;
-  version: 6;
   mintA: TokenInfo;
   mintB: TokenInfo;
 
-  ammConfig: ClmmConfigInfo;
-  observationId: PublicKey;
-  exBitmapAccount: PublicKey;
-
-  creator: PublicKey;
+  ammConfig: { tradeFeeRate: number };
   programId: PublicKey;
-
   tickSpacing: number;
   liquidity: BN;
   sqrtPriceX64: BN;
   currentPrice: Decimal;
   tickCurrent: number;
-  feeGrowthGlobalX64A: BN;
-  feeGrowthGlobalX64B: BN;
-  protocolFeesTokenA: BN;
-  protocolFeesTokenB: BN;
-  swapInAmountTokenA: BN;
-  swapOutAmountTokenB: BN;
-  swapInAmountTokenB: BN;
-  swapOutAmountTokenA: BN;
   tickArrayBitmap: BN[];
-
-  startTime: number;
-
   exBitmapInfo: TickArrayBitmapExtensionType;
-  rewardInfos: ReturnType<typeof PoolInfoLayout.decode>["rewardInfos"];
 }
 
 export interface ReturnTypeComputeAmountOut {
@@ -397,5 +379,43 @@ export interface DecreaseLiquidity {
   amountMinB: BN;
   nftAccount?: PublicKey;
   isClosePosition: boolean;
+}
+
+export type TickArrayCache = { [key: string]: TickArray };
+
+export interface AmmV3PoolInfo {
+  id: PublicKey;
+  mintA: {
+    mint: PublicKey;
+    vault: PublicKey;
+    decimals: number;
+  };
+  mintB: {
+    mint: PublicKey;
+    vault: PublicKey;
+    decimals: number;
+  };
+
+  ammConfig: ClmmConfigInfo;
+  observationId: PublicKey;
+
+  programId: PublicKey;
+
+  tickSpacing: number;
+  liquidity: BN;
+  sqrtPriceX64: BN;
+  currentPrice: Decimal;
+  tickCurrent: number;
+  tickArrayBitmap: BN[];
+}
+
+export interface QuoteParams {
+  poolId: PublicKey;
+  swapMode: SwapMode,
+  poolInfo: ClmmPoolLayout;
+  amount: BN;
+  slippage: number;
+  priceLimit?: Decimal
+  ammConfig: ClmmConfigInfo;
 }
 
