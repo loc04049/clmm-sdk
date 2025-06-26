@@ -14,6 +14,7 @@ import { TickQuery } from '../utils/tickQuery';
 import { TickArrayBitmapExtensionType, TickArrayCache } from '../type';
 import { MIN_SQRT_PRICE_X64, SwapMode } from '../utils/constants';
 import { PoolUtilsV1 } from '../utils/poolV1';
+import { WSOLMint } from '../constants';
 
 
 
@@ -61,9 +62,9 @@ describe('ClmmClient', () => {
     // console.log("🚀 ~ it ~ hashConfig:", hashConfig)
 
     const mint1 = {
-      // address: '6SCMd9BYv5Ack3MC9CKfjDz9BcKuR5yeDb3Eue9k4Z8L',
-      address: inputMint.publicKey.toString(),
-      decimals: 6,
+      address: WSOLMint.toString(),
+      // address: inputMint.publicKey.toString(),
+      decimals: 9,
       symbol: 'INPUT',
       name: 'Input Token',
       chainId: 'solanaDev',
@@ -82,13 +83,13 @@ describe('ClmmClient', () => {
       logoURI: 'https://example.com/input-token-logo.png'
     }
 
-    await createSplToken({
-      connection,
-      initialAmount: BigInt(1_000_000_000_000),
-      mint: inputMint,
-      payer: defaultAccount,
-      decimals: mint1.decimals,
-    });
+    // await createSplToken({
+    //   connection,
+    //   initialAmount: BigInt(1_000_000_000_000),
+    //   mint: inputMint,
+    //   payer: defaultAccount,
+    //   decimals: mint1.decimals,
+    // });
 
     await createSplToken({
       connection,
@@ -111,13 +112,16 @@ describe('ClmmClient', () => {
 
     const { instructions, address } = insCreatePoolInfo
     console.log("🚀 ~ it ~ address.poolId.toString():", address.poolId.toString())
+    console.log("🚀 ~ it ~ mintA:", address.mintA.address)
+    console.log("🚀 ~ it ~ mintB:", address.mintB.address)
+
 
     // FE chuẩn bị params
 
 
     const { price: pricePool } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(1))
-    const { price: priceMin } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(0.1))
-    const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(10))
+    const { price: priceMin } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(0.001))
+    const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(2))
     const [priceLower, priceUpper] = [Math.min(priceMin.toNumber(), priceMax.toNumber()), Math.max(priceMin.toNumber(), priceMax.toNumber())]
     const tickLower = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceLower), tickSpacing, address.mintA.decimals, address.mintB.decimals)
     const tickUpper = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceUpper), tickSpacing, address.mintA.decimals, address.mintB.decimals)
@@ -178,8 +182,8 @@ describe('ClmmClient', () => {
       tickLower: tickLower,
       tickUpper: tickUpper,
       base: "MintA",
-      baseAmount: new BN(2000000),
-      otherAmountMax: new BN(1000000000000),
+      baseAmount: new BN(100000000),
+      otherAmountMax: new BN(10000000000),
       nft2022: true
     })
 
@@ -219,7 +223,7 @@ describe('ClmmClient', () => {
 
     await connection.confirmTransaction(hashAddLiquidity, 'finalized');
 
-    // Swap ExactIn
+    // // Swap ExactIn
 
     const poolInfoSwapIn = await client.getClmmPoolInfo(address.poolId.toString())
 
@@ -331,40 +335,30 @@ describe('ClmmClient', () => {
 
     // // remove liquidity
 
-    // const positionInfoRemove = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
-    // console.log("🚀 ~ it ~ positionInfoRemove:", positionInfoRemove.liquidity.toString())
+    const positionInfoRemove = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
+    console.log("🚀 ~ it ~ positionInfoRemove:", positionInfoRemove.liquidity.toString())
 
-    // const insRemovePoolInfo = await client.decreaseLiquidity({
-    //   payer: defaultAccount.publicKey,
-    //   poolInfo: {
-    //     programId: client.clmmProgramId.toString(),
-    //     id: address.poolId.toString(),
-    //     mintA: address.mintA,
-    //     mintB: address.mintB,
-    //     config: {
-    //       id: ammConfigId,
-    //       tickSpacing,
-    //     },
-    //     rewardDefaultInfos: [],
-    //   },
-    //   poolKeys: {
-    //     vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
-    //     rewardInfos: []
-    //   },
-    //   ownerPosition: positionInfo,
-    //   liquidity: positionInfoRemove.liquidity,
-    //   amountMinA: new BN(0),
-    //   amountMinB: new BN(0),
-    //   isClosePosition: true,
-    // })
+    const insRemovePoolInfo = await client.decreaseLiquidity({
+      payer: defaultAccount.publicKey,
+      poolInfo: poolInfo,
+      poolKeys: {
+        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+        rewardInfos: []
+      },
+      ownerPosition: positionInfo,
+      liquidity: positionInfoRemove.liquidity,
+      amountMinA: new BN(0),
+      amountMinB: new BN(0),
+      isClosePosition: true,
+    })
 
-    // const transactionRemoveLiquidity = new Transaction().add(...insRemovePoolInfo.instructions);
+    const transactionRemoveLiquidity = new Transaction().add(...insRemovePoolInfo.instructions);
 
-    // const hashRemoveLiquidity = await connection.sendTransaction(transactionRemoveLiquidity, [defaultAccount], {
-    //   skipPreflight: true
-    // });
-    // console.log("🚀 ~ it ~ hashRemoveLiquidity:", hashRemoveLiquidity)
+    const hashRemoveLiquidity = await connection.sendTransaction(transactionRemoveLiquidity, [defaultAccount], {
+      skipPreflight: true
+    });
+    console.log("🚀 ~ it ~ hashRemoveLiquidity:", hashRemoveLiquidity)
 
-    // await connection.confirmTransaction(hashRemoveLiquidity, 'finalized');
+    await connection.confirmTransaction(hashRemoveLiquidity, 'finalized');
   })
 })

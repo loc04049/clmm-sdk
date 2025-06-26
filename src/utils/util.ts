@@ -1,5 +1,5 @@
-import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { AccountInfo, Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { AccountInfo, Connection, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import { TickArrayBitmapExtensionType, TickArrayCache, TokenInfo } from "../type";
 import Decimal from "decimal.js";
@@ -9,6 +9,7 @@ import { FETCH_TICKARRAY_COUNT } from "./tickQuery";
 import { getPdaTickArrayAddress } from "./pda";
 import { TickUtilsV1 } from "./tickV1";
 import { BorshAccountsCoder } from "@project-serum/anchor";
+import { WSOLMint } from "../constants";
 export function u16ToBytes(num: number): Uint8Array {
   const arr = new ArrayBuffer(2);
   const view = new DataView(arr);
@@ -98,6 +99,7 @@ export const getOrCreateATAWithExtension = async ({
   programId = TOKEN_PROGRAM_ID,
   associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID,
   allowOwnerOffCurve = false,
+  amountInLamports,
 }: {
   connection: Connection;
   payer: PublicKey;
@@ -107,7 +109,11 @@ export const getOrCreateATAWithExtension = async ({
   programId?: PublicKey;
   associatedTokenProgramId?: PublicKey;
   allowOwnerOffCurve?: boolean;
+  amountInLamports?: BN
 }) => {
+
+  const isWSol = WSOLMint.equals(mint);
+
   const ata = getAssociatedTokenAddressSync(
     mint,
     owner,
@@ -118,6 +124,17 @@ export const getOrCreateATAWithExtension = async ({
 
   try {
     await getAccount(connection, ata, 'confirmed', programId);
+    if (isWSol && amountInLamports?.gt(new BN(0))) {
+      instruction.push(
+        SystemProgram.transfer({
+          fromPubkey: payer,
+          toPubkey: ata,
+          lamports: amountInLamports.toNumber(),
+        })
+      );
+
+      instruction.push(createSyncNativeInstruction(ata));
+    }
     return ata;
   } catch (e) {
     const ix = createAssociatedTokenAccountInstruction(
@@ -129,6 +146,16 @@ export const getOrCreateATAWithExtension = async ({
       associatedTokenProgramId,
     );
     instruction.push(ix);
+    if (isWSol && amountInLamports?.gt(new BN(0))) {
+      instruction.push(
+        SystemProgram.transfer({
+          fromPubkey: payer,
+          toPubkey: ata,
+          lamports: amountInLamports.toNumber(),
+        })
+      );
+    }
+    if (isWSol) instruction.push(createSyncNativeInstruction(ata));
     return ata;
   }
 };

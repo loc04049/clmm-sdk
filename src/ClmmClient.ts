@@ -7,7 +7,7 @@ import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { getPdaAmmConfigId, getPdaMintExAccount } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
 import { getOrCreateATAWithExtension, getTickArrayCache } from "./utils/util";
-import { getAnchorProvider, MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
+import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
 import BN from "bn.js";
 import { IDL } from "./idl/amm_v3";
 import { BorshAccountsCoder, Idl } from '@project-serum/anchor';
@@ -130,6 +130,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: baseAmount
     })
 
     const ownerTokenAccountB = await getOrCreateATAWithExtension({
@@ -140,6 +141,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: baseAmount
     })
 
     const insInfo = await ClmmInstrument.openPositionFromBaseInstructions({
@@ -182,9 +184,6 @@ export class ClmmClient {
 
     const instructions: TransactionInstruction[] = [];
 
-    // const mintAUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintA.address === WSOLMint.toString();
-    // const mintBUseSOLBalance = ownerInfo.useSOLBalance && poolInfo.mintB.address === WSOLMint.toString();
-
     const ownerTokenAccountA = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
@@ -193,6 +192,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: amountMaxA,
     })
 
     const ownerTokenAccountB = await getOrCreateATAWithExtension({
@@ -203,6 +203,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: amountMaxB,
     })
 
     const ins = ClmmInstrument.increasePositionFromLiquidityInstructions({
@@ -399,6 +400,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: amountIn,
     })
 
     const ownerTokenAccountB = await getOrCreateATAWithExtension({
@@ -409,6 +411,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: amountIn,
     })
 
     const swapInsInfo = ClmmInstrument.makeSwapBaseInInstructions({
@@ -477,6 +480,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: amountInMax,
     })
 
     const ownerTokenAccountB = await getOrCreateATAWithExtension({
@@ -487,6 +491,7 @@ export class ClmmClient {
       instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
+      amountInLamports: amountInMax,
     })
 
     const swapInsInfo = ClmmInstrument.makeSwapBaseOutInstructions({
