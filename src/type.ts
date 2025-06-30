@@ -417,5 +417,6 @@ export interface QuoteParams {
   slippage: number;
   priceLimit?: Decimal
   ammConfig: ClmmConfigInfo;
+  inputMint: PublicKey;
 }
 

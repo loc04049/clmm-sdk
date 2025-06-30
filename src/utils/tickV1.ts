@@ -31,6 +31,8 @@ export class TickUtilsV1 {
         expectedCount: number,
         tickSpacing: number
     ) {
+        console.log("🚀 ~ TickUtilsV1 ~ end:", end)
+        console.log("🚀 ~ TickUtilsV1 ~ start:", start)
         let fetchNum = 0;
         const result: number[] = [];
         for (let i = start; i < end; i++) {
@@ -50,16 +52,21 @@ export class TickUtilsV1 {
         tickArrayBitmap: BN,
         tickSpacing: number,
         tickArrayStartIndex: number,
-        expectedCount: number
+        expectedCount: number,
+        zeroForOne: boolean
     ) {
         if (tickArrayStartIndex % (tickSpacing * TICK_ARRAY_SIZE) != 0) {
             throw new Error('Invild tickArrayStartIndex');
         }
         const tickArrayOffset = Math.floor(tickArrayStartIndex / (tickSpacing * TICK_ARRAY_SIZE)) + 512;
-        return [
-            // find right of currenct offset
-            ...TickUtilsV1.searchLowBitFromStart(tickArrayBitmap, tickArrayOffset - 1, 0, expectedCount, tickSpacing),
+        if (zeroForOne) {
+            return [
+                // find right of currenct offset
+                ...TickUtilsV1.searchLowBitFromStart(tickArrayBitmap, tickArrayOffset - 1, 0, expectedCount, tickSpacing),
+            ];
+        }
 
+        return [
             // find left of current offset
             ...TickUtilsV1.searchHightBitFromStart(
                 tickArrayBitmap,

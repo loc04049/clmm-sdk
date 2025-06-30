@@ -9,7 +9,7 @@ import { getPdaTickArrayAddress } from "./pda";
 import { TickQuery } from "./tickQuery";
 
 export const TICK_ARRAY_SIZE = 60;
-export const TICK_ARRAY_BITMAP_SIZE = 512;
+export const TICK_ARRAY_BITMAP_SIZE = 1024;
 
 export interface ReturnTypeGetTickPrice {
   tick: number;

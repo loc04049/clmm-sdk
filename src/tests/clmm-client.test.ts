@@ -1,7 +1,7 @@
 import { AccountInfo, Keypair, PublicKey, Transaction } from '@solana/web3.js';
 import { ClmmClient } from '../ClmmClient';
 import { createSplToken, getLocalWallet } from './utils';
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { getPdaAmmConfigId } from '../utils/pda';
 import { CLMM_PROGRAM_ID } from '../constants/programIds';
 import Decimal from 'decimal.js';
@@ -11,16 +11,16 @@ import { PoolUtils } from '../utils/pool';
 import { SqrtPriceMath, TickMath } from '../utils/math';
 import { TickUtils } from '../utils/tick';
 import { TickQuery } from '../utils/tickQuery';
-import { TickArrayBitmapExtensionType, TickArrayCache } from '../type';
+import { PoolInfoConcentratedItem, TickArrayBitmapExtensionType, TickArrayCache } from '../type';
 import { MIN_SQRT_PRICE_X64, SwapMode } from '../utils/constants';
 import { PoolUtilsV1 } from '../utils/poolV1';
-import { WSOLMint } from '../constants';
+import { RPC, WSOLMint } from '../constants';
 
 
 
 jest.setTimeout(300000);
 describe('ClmmClient', () => {
-  const client = new ClmmClient({ rpc: 'https://api.devnet.solana.com', clmmProgramId: CLMM_PROGRAM_ID.dev });
+  const client = new ClmmClient({ rpc: RPC.mainnet, clmmProgramId: CLMM_PROGRAM_ID.main });
   const connection = client.connection;
   const defaultAccount = getLocalWallet();
   const inputMint = Keypair.generate();
@@ -62,24 +62,26 @@ describe('ClmmClient', () => {
     // console.log("🚀 ~ it ~ hashConfig:", hashConfig)
 
     const mint1 = {
-      address: WSOLMint.toString(),
+      address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
       // address: inputMint.publicKey.toString(),
-      decimals: 9,
+      decimals: 6,
       symbol: 'INPUT',
       name: 'Input Token',
       chainId: 'solanaDev',
       programId: TOKEN_PROGRAM_ID.toString(),
+      // programId: TOKEN_2022_PROGRAM_ID.toString(),
       logoURI: 'https://example.com/input-token-logo.png',
     }
 
     const mint2 = {
-      // address: '2EYWeNzTPGKzBtfiEyCk2wZsz6WwkfwyTtSjjRmE5rfy',
-      address: outputMint.publicKey.toString(),
+      address: 'SarosY6Vscao718M4A778z4CGtvcwcGef5M9MEH1LGL',
+      // address: outputMint.publicKey.toString(),
       decimals: 6,
       symbol: 'OUTPUT',
       name: 'Output Token',
       chainId: 'solanaDev',
       programId: TOKEN_PROGRAM_ID.toString(),
+      // programId: TOKEN_2022_PROGRAM_ID.toString(),
       logoURI: 'https://example.com/input-token-logo.png'
     }
 
@@ -91,157 +93,175 @@ describe('ClmmClient', () => {
     //   decimals: mint1.decimals,
     // });
 
-    await createSplToken({
-      connection,
-      initialAmount: BigInt(1_000_000_000_000),
-      mint: outputMint,
-      payer: defaultAccount,
-      decimals: mint2.decimals,
-    });
+    // await createSplToken({
+    //   connection,
+    //   initialAmount: BigInt(1_000_000_000_000),
+    //   mint: outputMint,
+    //   payer: defaultAccount,
+    //   decimals: mint2.decimals,
+    // });
 
-    const tickSpacing = 60
-    const ammConfigId = 'HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs'
+    // const tickSpacing = 60
+    // const ammConfigId = 'HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs'
+    const ammConfigId = 'E64NGkDLLCdQ2yFNPcavaKptrEgmiQaNykUuLC1Qgwyp'
+    const poolId = 'J3FBhMSKi5eRB1feMBaxqbBM9ZBzr5TH2H2Q7xQsptHF'
+    const positionId = '5zGF4g1QxXAb4f4r1hPrRXb1gHRPG5wTwALRdvRZPwVZ'
 
-    const insCreatePoolInfo = await client.createPool({
-      owner: defaultAccount.publicKey,
-      mint1,
-      mint2,
-      ammConfigId: new PublicKey(ammConfigId),
-      initialPrice: new Decimal(1), // initialPrice = tokenB_amount / tokenA_amount; (1 tokenA = 2 tokenB)
+    // const insCreatePoolInfo = await client.createPool({
+    //   owner: defaultAccount.publicKey,
+    //   mint1,
+    //   mint2,
+    //   ammConfigId: new PublicKey(ammConfigId),
+    //   initialPrice: new Decimal(1), // initialPrice = tokenB_amount / tokenA_amount; (1 tokenA = 2 tokenB)
+    // })
+
+    // const { instructions, address } = insCreatePoolInfo
+    // console.log("🚀 ~ it ~ address.poolId.toString():", address.poolId.toString())
+    // console.log("🚀 ~ it ~ mintA:", address.mintA.address)
+    // console.log("🚀 ~ it ~ mintB:", address.mintB.address)
+
+
+    // // FE chuẩn bị params
+    const configInfo = await client.getAmmConfigInfo(ammConfigId)
+    const getPoolInfo = await client.getClmmPoolInfo(poolId)
+
+    const currentPrice = TickUtils.getTickPriceDecimals({
+      mintDecimalsA: getPoolInfo.mintDecimalsA,
+      mintDecimalsB: getPoolInfo.mintDecimalsB,
+      tick: getPoolInfo.tickCurrent,
+      baseIn: true,
     })
 
-    const { instructions, address } = insCreatePoolInfo
-    console.log("🚀 ~ it ~ address.poolId.toString():", address.poolId.toString())
-    console.log("🚀 ~ it ~ mintA:", address.mintA.address)
-    console.log("🚀 ~ it ~ mintB:", address.mintB.address)
+    const positionInfo = await client.getPositionInfo(positionId)
 
 
-    // FE chuẩn bị params
+    const getEpochInfo = await connection.getEpochInfo()
 
 
-    const { price: pricePool } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(1))
-    const { price: priceMin } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(0.001))
-    const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(2))
-    const [priceLower, priceUpper] = [Math.min(priceMin.toNumber(), priceMax.toNumber()), Math.max(priceMin.toNumber(), priceMax.toNumber())]
-    const tickLower = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceLower), tickSpacing, address.mintA.decimals, address.mintB.decimals)
-    const tickUpper = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceUpper), tickSpacing, address.mintA.decimals, address.mintB.decimals)
-    const poolInfo = {
-      price: pricePool.toNumber(),
+
+
+    // const { price: pricePool } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(1))
+    const { price: priceMin, mintA, mintB } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(0.001))
+    // const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(2))
+    // const [priceLower, priceUpper] = [Math.min(priceMin.toNumber(), priceMax.toNumber()), Math.max(priceMin.toNumber(), priceMax.toNumber())]
+    // const tickLower = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceLower), tickSpacing, getPoolInfo.mintDecimalsA, getPoolInfo.mintDecimalsB)
+    // const tickUpper = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceUpper), tickSpacing, getPoolInfo.mintDecimalsA, getPoolInfo.mintDecimalsB)
+    const poolInfo: PoolInfoConcentratedItem = {
+      price: currentPrice.price.toNumber(),
       programId: client.clmmProgramId.toString(),
-      id: address.poolId.toString(),
-      mintA: address.mintA,
-      mintB: address.mintB,
+      id: poolId,
+      mintA: mintA,
+      mintB: mintB,
       config: {
         id: ammConfigId,
-        tickSpacing,
+        tickSpacing: configInfo.tickSpacing,
       },
       rewardDefaultInfos: [],
     }
 
-    const infoLiquidityAmountAB = await PoolUtils.getLiquidityAmountOutFromAmountIn({
-      poolInfo: poolInfo,
-      inputA: false,
-      tickLower,
-      tickUpper,
-      amount: new BN(1000000),
-      slippage: 0.1,
-      add: true,
-      epochInfo: {
-        epoch: 0,
-        slotIndex: 0,
-        slotsInEpoch: 0,
-        absoluteSlot: 0,
-      },
-      amountHasFee: false
-    })
+    // const infoLiquidityAmountAB = await PoolUtils.getLiquidityAmountOutFromAmountIn({
+    //   poolInfo: poolInfo,
+    //   inputA: true,
+    //   tickLower: positionInfo.tickLower,
+    //   tickUpper: positionInfo.tickUpper,
+    //   // amount: new BN(1000000),
+    //   amount: new BN(new Decimal(1 || '0').mul(10 ** (true ? mintA.decimals : mintB.decimals)).toFixed(0)),
+    //   slippage: 0,
+    //   add: true,
+    //   epochInfo: getEpochInfo,
+    //   amountHasFee: true
+    // })
+    // console.log("🚀 ~ it ~ infoLiquidityAmountAB:", infoLiquidityAmountAB.amountB.amount.toNumber())
+    // console.log("🚀 ~ it ~ amountSlippageB:", infoLiquidityAmountAB.amountSlippageB.amount.toNumber())
 
-    // const infoAmountABFromLiquidity = await PoolUtils.getAmountsFromLiquidity({
-    //   poolInfo,
-    //   tickLower,
-    //   tickUpper,
-    //   liquidity: infoLiquidityAmountAB.liquidity,
-    //   slippage: 0.1,
-    //   add: false,
-    //   epochInfo: {
-    //     epoch: 0,
-    //     slotIndex: 0,
-    //     slotsInEpoch: 0,
-    //     absoluteSlot: 0,
+    // const aaaa = new Decimal(infoLiquidityAmountAB.amountSlippageB.amount.toString()).mul(1 + 0.025).div(10 ** mintB.decimals)
+    // console.log("🚀 ~ it ~ aaaa:", aaaa)
+
+
+    // // const infoAmountABFromLiquidity = await PoolUtils.getAmountsFromLiquidity({
+    // //   poolInfo,
+    // //   tickLower,
+    // //   tickUpper,
+    // //   liquidity: infoLiquidityAmountAB.liquidity,
+    // //   slippage: 0.1,
+    // //   add: false,
+    // //   epochInfo: {
+    // //     epoch: 0,
+    // //     slotIndex: 0,
+    // //     slotsInEpoch: 0,
+    // //     absoluteSlot: 0,
+    // //   },
+    // // })
+
+    // // openPosition
+
+    // const insOpenPositionFromBase = await client.openPositionFromBase({
+    //   payer: defaultAccount.publicKey,
+    //   poolInfo: poolInfo,
+    //   poolKeys: {
+    //     vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+    //     rewardInfos: [],
     //   },
+    //   tickLower: tickLower,
+    //   tickUpper: tickUpper,
+    //   base: "MintA",
+    //   baseAmount: new BN(100000000),
+    //   otherAmountMax: new BN(10000000000),
+    //   nft2022: true
     // })
 
-    // openPosition
+    // const transaction = new Transaction().add(...instructions);
 
-    const insOpenPositionFromBase = await client.openPositionFromBase({
-      payer: defaultAccount.publicKey,
-      poolInfo: poolInfo,
-      poolKeys: {
-        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
-        rewardInfos: [],
-      },
-      tickLower: tickLower,
-      tickUpper: tickUpper,
-      base: "MintA",
-      baseAmount: new BN(100000000),
-      otherAmountMax: new BN(10000000000),
-      nft2022: true
-    })
-
-    const transaction = new Transaction().add(...instructions);
-
-    transaction.add(...insOpenPositionFromBase.instructions);
-    const hashCreate = await connection.sendTransaction(transaction, [defaultAccount, ...insOpenPositionFromBase.signers], {
-      skipPreflight: true
-    });
-    console.log("🚀 ~ it ~ hashCreate:", hashCreate)
-    await connection.confirmTransaction(hashCreate, 'finalized');
+    // transaction.add(...insOpenPositionFromBase.instructions);
+    // const hashCreate = await connection.sendTransaction(transaction, [defaultAccount, ...insOpenPositionFromBase.signers], {
+    //   skipPreflight: true
+    // });
+    // console.log("🚀 ~ it ~ hashCreate:", hashCreate)
+    // await connection.confirmTransaction(hashCreate, 'finalized');
 
 
     // // add pool
 
 
-    const positionInfo = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
+    // const insAddPoolInfo = await client.increasePositionFromLiquidity({
+    //   payer: defaultAccount.publicKey,
+    //   poolInfo: poolInfo,
+    //   poolKeys: {
+    //     vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
+    //     rewardInfos: []
+    //   },
+    //   ownerPosition: positionInfo,
+    //   liquidity: infoLiquidityAmountAB.liquidity,
+    //   amountMaxA: infoLiquidityAmountAB.amountSlippageA.amount,
+    //   amountMaxB: infoLiquidityAmountAB.amountSlippageB.amount,
+    // })
 
-    const insAddPoolInfo = await client.increasePositionFromLiquidity({
-      payer: defaultAccount.publicKey,
-      poolInfo: poolInfo,
-      poolKeys: {
-        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
-        rewardInfos: []
-      },
-      ownerPosition: positionInfo,
-      liquidity: infoLiquidityAmountAB.liquidity,
-      amountMaxA: infoLiquidityAmountAB.amountSlippageA.amount,
-      amountMaxB: infoLiquidityAmountAB.amountSlippageB.amount,
-    })
+    // const transactionAddLiquidity = new Transaction().add(...insAddPoolInfo.instructions);
+    // const hashAddLiquidity = await connection.sendTransaction(transactionAddLiquidity, [defaultAccount], {
+    //   skipPreflight: true
+    // });
+    // console.log("🚀 ~ it ~ hashAddLiquidity:", hashAddLiquidity)
 
-    const transactionAddLiquidity = new Transaction().add(...insAddPoolInfo.instructions);
-    const hashAddLiquidity = await connection.sendTransaction(transactionAddLiquidity, [defaultAccount], {
-      skipPreflight: true
-    });
-    console.log("🚀 ~ it ~ hashAddLiquidity:", hashAddLiquidity)
-
-    await connection.confirmTransaction(hashAddLiquidity, 'finalized');
+    // await connection.confirmTransaction(hashAddLiquidity, 'finalized');
 
     // // Swap ExactIn
 
-    const poolInfoSwapIn = await client.getClmmPoolInfo(address.poolId.toString())
-
     const quoteExactIn = await client.getQuote({
+      inputMint: getPoolInfo.mintB,
       swapMode: SwapMode.ExactIn,
-      poolId: address.poolId,
-      poolInfo: poolInfoSwapIn,
-      amount: new BN(1000000),
-      slippage: 0.1,
+      poolId: new PublicKey(poolId),
+      poolInfo: getPoolInfo,
+      amount: new BN(1000),
+      slippage: 0,
       priceLimit: new Decimal(0),
       ammConfig: {
-        tradeFeeRate: 2500,
+        tradeFeeRate: configInfo.tradeFeeRate,
         id: new PublicKey(ammConfigId),
-        index: 0,
-        tickSpacing: tickSpacing,
-        fundFeeRate: 40000,
+        index: configInfo.index,
+        tickSpacing: configInfo.tickSpacing,
+        fundFeeRate: configInfo.fundFeeRate,
         fundOwner: defaultAccount.publicKey.toString(),
-        protocolFeeRate: 120000,
+        protocolFeeRate: configInfo.protocolFeeRate,
       }
     })
     console.log("🚀 ~ it ~ quoteExactIn currentPrice:", quoteExactIn.currentPrice.toString())
@@ -254,14 +274,14 @@ describe('ClmmClient', () => {
       payer: defaultAccount.publicKey,
       poolInfo: poolInfo,
       poolKeys: {
-        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+        vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
         rewardInfos: []
       },
-      inputMint: address.mintA.address,
+      inputMint: quoteExactIn.inputMint,
       amountIn: quoteExactIn.inAmount,
       amountOutMin: quoteExactIn.slippageAmount,
       priceLimit: quoteExactIn.priceLimit,
-      observationId: address.observationId,
+      observationId: getPoolInfo.observationId,
       // remainingAccounts: [insOpenPositionFromBase.address.tickArrayLower, insOpenPositionFromBase.address.tickArrayUpper], // calculator tick array
       remainingAccounts: quoteExactIn.remainingAccounts,
 
@@ -279,24 +299,22 @@ describe('ClmmClient', () => {
 
     // Swap ExactOut
 
-
-    // const poolInfoSwapOut = await client.getClmmPoolInfo(address.poolId.toString())
-
     // const quoteSwapOut = await client.getQuote({
+    //   inputMint: getPoolInfo.mintB,
     //   swapMode: SwapMode.ExactOut,
-    //   poolId: address.poolId,
-    //   poolInfo: poolInfoSwapOut,
-    //   amount: new BN(1000000),
-    //   slippage: 0.1,
+    //   poolId: new PublicKey(poolId),
+    //   poolInfo: getPoolInfo,
+    //   amount: new BN(1000),
+    //   slippage: 0,
     //   priceLimit: new Decimal(0),
     //   ammConfig: {
-    //     tradeFeeRate: 2500,
+    //     tradeFeeRate: configInfo.tradeFeeRate,
     //     id: new PublicKey(ammConfigId),
-    //     index: 0,
-    //     tickSpacing: tickSpacing,
-    //     fundFeeRate: 40000,
+    //     index: configInfo.index,
+    //     tickSpacing: configInfo.tickSpacing,
+    //     fundFeeRate: configInfo.fundFeeRate,
     //     fundOwner: defaultAccount.publicKey.toString(),
-    //     protocolFeeRate: 120000,
+    //     protocolFeeRate: configInfo.protocolFeeRate,
     //   }
     // })
     // console.log("🚀 ~ it ~ quoteSwapOut currentPrice:", quoteSwapOut.currentPrice.toString())
@@ -304,20 +322,22 @@ describe('ClmmClient', () => {
     // console.log("🚀 ~ it ~ quoteSwapOut inAmount:", quoteSwapOut.inAmount.toString())
     // console.log("🚀 ~ it ~ quoteSwapOut outAmount:", quoteSwapOut.outAmount.toString())
     // console.log("🚀 ~ it ~ quoteSwapOut feeAmount:", quoteSwapOut.feeAmount.toString())
+    // console.log("🚀 ~ it ~ quoteSwapOut slippageAmount:", quoteSwapOut.slippageAmount.toString())
+
 
     // const insSwapOut = await client.swapBaseOut({
     //   payer: defaultAccount.publicKey,
     //   poolInfo: poolInfo,
     //   poolKeys: {
-    //     vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+    //     vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
     //     rewardInfos: []
     //   },
-    //   outputMint: address.mintB.address,
-    //   amountOut: quoteExactIn.outAmount,
-    //   amountInMax: quoteExactIn.slippageAmount,
-    //   priceLimit: quoteExactIn.priceLimit,
-    //   observationId: address.observationId,
-    //   remainingAccounts: quoteExactIn.remainingAccounts,
+    //   outputMint: quoteSwapOut.inputMint,
+    //   amountOut: quoteSwapOut.outAmount,
+    //   amountInMax: quoteSwapOut.slippageAmount,
+    //   priceLimit: quoteSwapOut.priceLimit,
+    //   observationId: getPoolInfo.observationId,
+    //   remainingAccounts: quoteSwapOut.remainingAccounts,
     // })
 
     // const transactionSwapOut = new Transaction().add(...insSwapOut.instructions);
@@ -335,30 +355,30 @@ describe('ClmmClient', () => {
 
     // // remove liquidity
 
-    const positionInfoRemove = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
-    console.log("🚀 ~ it ~ positionInfoRemove:", positionInfoRemove.liquidity.toString())
+    // const positionInfoRemove = await client.getPositionInfo(insOpenPositionFromBase.address.personalPosition.toString())
+    // console.log("🚀 ~ it ~ positionInfoRemove:", positionInfoRemove.liquidity.toString())
 
-    const insRemovePoolInfo = await client.decreaseLiquidity({
-      payer: defaultAccount.publicKey,
-      poolInfo: poolInfo,
-      poolKeys: {
-        vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
-        rewardInfos: []
-      },
-      ownerPosition: positionInfo,
-      liquidity: positionInfoRemove.liquidity,
-      amountMinA: new BN(0),
-      amountMinB: new BN(0),
-      isClosePosition: true,
-    })
+    // const insRemovePoolInfo = await client.decreaseLiquidity({
+    //   payer: defaultAccount.publicKey,
+    //   poolInfo: poolInfo,
+    //   poolKeys: {
+    //     vault: { A: address.mintAVault.toString(), B: address.mintBVault.toString() },
+    //     rewardInfos: []
+    //   },
+    //   ownerPosition: positionInfo,
+    //   liquidity: positionInfoRemove.liquidity,
+    //   amountMinA: new BN(0),
+    //   amountMinB: new BN(0),
+    //   isClosePosition: true,
+    // })
 
-    const transactionRemoveLiquidity = new Transaction().add(...insRemovePoolInfo.instructions);
+    // const transactionRemoveLiquidity = new Transaction().add(...insRemovePoolInfo.instructions);
 
-    const hashRemoveLiquidity = await connection.sendTransaction(transactionRemoveLiquidity, [defaultAccount], {
-      skipPreflight: true
-    });
-    console.log("🚀 ~ it ~ hashRemoveLiquidity:", hashRemoveLiquidity)
+    // const hashRemoveLiquidity = await connection.sendTransaction(transactionRemoveLiquidity, [defaultAccount], {
+    //   skipPreflight: true
+    // });
+    // console.log("🚀 ~ it ~ hashRemoveLiquidity:", hashRemoveLiquidity)
 
-    await connection.confirmTransaction(hashRemoveLiquidity, 'finalized');
+    // await connection.confirmTransaction(hashRemoveLiquidity, 'finalized');
   })
 })

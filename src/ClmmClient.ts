@@ -548,7 +548,7 @@ export class ClmmClient {
 
 
   public async getQuote(quoteParams: QuoteParams) {
-    const { poolId, swapMode, poolInfo, amount, slippage, priceLimit = new Decimal(0), ammConfig } = quoteParams
+    const { poolId, inputMint, swapMode, poolInfo, amount, slippage, priceLimit = new Decimal(0), ammConfig } = quoteParams
 
     const currentPrice = TickUtils.getTickPriceDecimals({
       mintDecimalsA: poolInfo.mintDecimalsA,
@@ -556,6 +556,7 @@ export class ClmmClient {
       tick: poolInfo.tickCurrent,
       baseIn: true,
     })
+    const zeroForOne = inputMint.equals(poolInfo.mintA)
 
     const poolInFoSwap: AmmV3PoolInfo = {
       id: poolId,
@@ -586,15 +587,15 @@ export class ClmmClient {
       connection: this.connection,
       clmmProgramId: this.clmmProgramId,
       coder: this.coder,
+      zeroForOne
     })
-
     if (swapMode === 'ExactIn') {
       try {
         const { amountOut, minAmountOut, fee, priceImpact, executionPrice, currentPrice, remainingAccounts } = PoolUtilsV1.computeAmountOut({
           poolInfo: poolInFoSwap,
           tickArrayCache: tickArrayCache,
           amountIn: amount,
-          baseMint: poolInfo.mintA,
+          baseMint: inputMint,
           slippage,
           priceLimit,
         });
@@ -605,11 +606,12 @@ export class ClmmClient {
           outAmount: amountOut,
           slippageAmount: minAmountOut,
           executionPrice: executionPrice,
-          currentPrice,
+          currentPrice: zeroForOne ? currentPrice : new Decimal(1).div(currentPrice),
           feeAmount: fee,
           priceLimit,
           priceImpact,
-          remainingAccounts
+          remainingAccounts,
+          inputMint,
         };
       } catch (e) {
         console.log("🚀 ~ ClmmClient ~ getQuote ~ e:", e)
@@ -623,7 +625,8 @@ export class ClmmClient {
           feeAmount: new BN(0),
           priceLimit,
           priceImpact: new Decimal(0),
-          remainingAccounts: []
+          remainingAccounts: [],
+          inputMint
         };
       }
     } else {
@@ -632,7 +635,7 @@ export class ClmmClient {
           poolInfo: poolInFoSwap,
           tickArrayCache: tickArrayCache,
           amountOut: amount,
-          baseMint: poolInfo.mintB,
+          baseMint: inputMint,
           slippage,
           priceLimit,
         });
@@ -643,11 +646,12 @@ export class ClmmClient {
           outAmount: amount,
           slippageAmount: maxAmountIn,
           executionPrice: executionPrice,
-          currentPrice,
+          currentPrice: zeroForOne ? currentPrice : new Decimal(1).div(currentPrice),
           feeAmount: fee,
           priceLimit,
           priceImpact,
-          remainingAccounts
+          remainingAccounts,
+          inputMint,
         };
       } catch (error) {
         console.log("🚀 ~ ClmmClient ~ getQuote ~ error:", error)
@@ -661,7 +665,8 @@ export class ClmmClient {
           feeAmount: new BN(0),
           priceLimit,
           priceImpact: new Decimal(0),
-          remainingAccounts: []
+          remainingAccounts: [],
+          inputMint,
         };
       }
 

@@ -193,7 +193,7 @@ export function getTokenATokenBAndPrice(
   }
 }
 
-export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, programId: PublicKey): PublicKey[] => {
+export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, programId: PublicKey, zeroForOne: boolean): PublicKey[] => {
   const tickArrayBitmap = TickUtils.mergeTickArrayBitmap(poolState.tickArrayBitmap);
   const currentTickArrayStartIndex = TickUtils.getTickArrayStartIndexByTick(
     poolState.tickCurrent,
@@ -205,7 +205,8 @@ export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, p
     tickArrayBitmap,
     poolState.tickSpacing,
     currentTickArrayStartIndex,
-    Math.floor(FETCH_TICKARRAY_COUNT / 2)
+    Math.floor(FETCH_TICKARRAY_COUNT / 2),
+    zeroForOne,
   );
   for (const itemIndex of startIndexArray) {
     const { publicKey: tickArrayAddress } = getPdaTickArrayAddress(programId, address, itemIndex);
@@ -219,16 +220,18 @@ export const getTickArrayCache = async ({
   poolId,
   connection,
   clmmProgramId,
-  coder
+  coder,
+  zeroForOne
 }: {
   poolInfo: ClmmPoolLayout;
   poolId: PublicKey;
   connection: Connection;
   clmmProgramId: PublicKey;
   coder: BorshAccountsCoder;
+  zeroForOne: boolean;
 }) => {
 
-  const tickArrayPks = getTickArrayPks(poolId, poolInfo, clmmProgramId);
+  const tickArrayPks = getTickArrayPks(poolId, poolInfo, clmmProgramId, zeroForOne);
   const infos = await connection.getMultipleAccountsInfo(tickArrayPks);
 
   const accountInfoMap = new Map<string, AccountInfo<Buffer>>();

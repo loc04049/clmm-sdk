@@ -19,3 +19,9 @@ export const InstructionType = {
 }
 
 export const WSOLMint = new PublicKey("So11111111111111111111111111111111111111112");
+
+export const RPC = {
+    // mainnet: "https://superwallet-information-api.coin98.tech/api/solanaV4",
+    mainnet: "https://api.mainnet-beta.solana.com",
+    devnet: "https://api.devnet.solana.com",
+}
