@@ -1,6 +1,6 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
-import { AmmConfigLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
+import { AmmConfigLayout, ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
@@ -544,6 +544,57 @@ export class ClmmClient {
       fundOwner
     })
     return insInfo
+  }
+
+  public async getInfoTickArray({
+    poolId,
+    poolInfo,
+  }: {
+    poolId: PublicKey,
+    poolInfo: ClmmPoolLayout
+  }): Promise<{ tick: string; price: string; liquidity: number; }[]> {
+    const tickArrayCache = await getTickArrayCache({
+      poolId: poolId,
+      poolInfo,
+      connection: this.connection,
+      clmmProgramId: this.clmmProgramId,
+      coder: this.coder,
+    })
+
+    const dataInfoTick: { tick: string; price: string, liquidityGross: number, liquidityNet: number }[] = [];
+    let liquidityActive = 0;
+
+    Object.values(tickArrayCache).forEach(tickArray => {
+      tickArray.ticks.forEach(tick => {
+        if (!(tick.liquidityNet.isZero && tick.liquidityGross.isZero() && tick.tick === 0)) {
+          const priceInfo = TickUtils.getTickPriceDecimals({
+            mintDecimalsA: poolInfo.mintDecimalsA,
+            mintDecimalsB: poolInfo.mintDecimalsB,
+            tick: tick.tick,
+            baseIn: true,
+          })
+
+          dataInfoTick.push({
+            tick: priceInfo.tick.toString(),
+            price: priceInfo.price.toString(),
+            liquidityGross: tick.liquidityGross.toNumber(),
+            liquidityNet: tick.liquidityNet.toNumber(),
+          });
+        }
+      });
+    });
+
+    const chartData = dataInfoTick.sort((a, b) => new BN(a.tick).mul(new BN(b.tick)).toNumber());
+
+    return chartData.map(item => {
+      liquidityActive += item.liquidityNet;
+      return {
+        tick: item.tick,
+        price: item.price,
+        liquidity: liquidityActive
+      }
+
+    })
   }
 
 

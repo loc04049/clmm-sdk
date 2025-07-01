@@ -74,7 +74,7 @@ describe('ClmmClient', () => {
     }
 
     const mint2 = {
-      address: 'SarosY6Vscao718M4A778z4CGtvcwcGef5M9MEH1LGL',
+      address: 'So11111111111111111111111111111111111111112',
       // address: outputMint.publicKey.toString(),
       decimals: 6,
       symbol: 'OUTPUT',
@@ -103,8 +103,8 @@ describe('ClmmClient', () => {
 
     // const tickSpacing = 60
     // const ammConfigId = 'HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs'
-    const ammConfigId = 'E64NGkDLLCdQ2yFNPcavaKptrEgmiQaNykUuLC1Qgwyp'
-    const poolId = 'J3FBhMSKi5eRB1feMBaxqbBM9ZBzr5TH2H2Q7xQsptHF'
+    const ammConfigId = 'HfERMT5DRA6C1TAqecrJQFpmkf3wsWTMncqnj3RDg5aw'
+    const poolId = 'EZVkeboWeXygtq8LMyENHyXdF5wpYrtExRNH9UwB1qYw'
     const positionId = '5zGF4g1QxXAb4f4r1hPrRXb1gHRPG5wTwALRdvRZPwVZ'
 
     // const insCreatePoolInfo = await client.createPool({
@@ -159,6 +159,12 @@ describe('ClmmClient', () => {
       rewardDefaultInfos: [],
     }
 
+    const infoTest = await client.getInfoTickArray({
+      poolId: new PublicKey(poolId),
+      poolInfo: getPoolInfo
+    })
+    console.log("🚀 ~ it ~ infoTest:", infoTest)
+
     // const infoLiquidityAmountAB = await PoolUtils.getLiquidityAmountOutFromAmountIn({
     //   poolInfo: poolInfo,
     //   inputA: true,
@@ -178,20 +184,20 @@ describe('ClmmClient', () => {
     // console.log("🚀 ~ it ~ aaaa:", aaaa)
 
 
-    // // const infoAmountABFromLiquidity = await PoolUtils.getAmountsFromLiquidity({
-    // //   poolInfo,
-    // //   tickLower,
-    // //   tickUpper,
-    // //   liquidity: infoLiquidityAmountAB.liquidity,
-    // //   slippage: 0.1,
-    // //   add: false,
-    // //   epochInfo: {
-    // //     epoch: 0,
-    // //     slotIndex: 0,
-    // //     slotsInEpoch: 0,
-    // //     absoluteSlot: 0,
-    // //   },
-    // // })
+    // const infoAmountABFromLiquidity = await PoolUtils.getAmountsFromLiquidity({
+    //   poolInfo,
+    //   tickLower: positionInfo.tickLower,
+    //   tickUpper: positionInfo.tickUpper,
+    //   liquidity: positionInfo.liquidity,
+    //   slippage: 0.1,
+    //   add: false,
+    //   epochInfo: {
+    //     epoch: 0,
+    //     slotIndex: 0,
+    //     slotsInEpoch: 0,
+    //     absoluteSlot: 0,
+    //   },
+    // })
 
     // // openPosition
 
@@ -246,54 +252,54 @@ describe('ClmmClient', () => {
 
     // // Swap ExactIn
 
-    const quoteExactIn = await client.getQuote({
-      inputMint: getPoolInfo.mintB,
-      swapMode: SwapMode.ExactIn,
-      poolId: new PublicKey(poolId),
-      poolInfo: getPoolInfo,
-      amount: new BN(1000),
-      slippage: 0,
-      priceLimit: new Decimal(0),
-      ammConfig: {
-        tradeFeeRate: configInfo.tradeFeeRate,
-        id: new PublicKey(ammConfigId),
-        index: configInfo.index,
-        tickSpacing: configInfo.tickSpacing,
-        fundFeeRate: configInfo.fundFeeRate,
-        fundOwner: defaultAccount.publicKey.toString(),
-        protocolFeeRate: configInfo.protocolFeeRate,
-      }
-    })
-    console.log("🚀 ~ it ~ quoteExactIn currentPrice:", quoteExactIn.currentPrice.toString())
-    console.log("🚀 ~ it ~ quoteExactIn executionPrice:", quoteExactIn.executionPrice.toString())
-    console.log("🚀 ~ it ~ quoteExactIn inAmount:", quoteExactIn.inAmount.toString())
-    console.log("🚀 ~ it ~ quoteExactIn outAmount:", quoteExactIn.outAmount.toString())
-    console.log("🚀 ~ it ~ quoteExactIn feeAmount:", quoteExactIn.feeAmount.toString())
+    // const quoteExactIn = await client.getQuote({
+    //   inputMint: getPoolInfo.mintB,
+    //   swapMode: SwapMode.ExactIn,
+    //   poolId: new PublicKey(poolId),
+    //   poolInfo: getPoolInfo,
+    //   amount: new BN(1000),
+    //   slippage: 0,
+    //   priceLimit: new Decimal(0),
+    //   ammConfig: {
+    //     tradeFeeRate: configInfo.tradeFeeRate,
+    //     id: new PublicKey(ammConfigId),
+    //     index: configInfo.index,
+    //     tickSpacing: configInfo.tickSpacing,
+    //     fundFeeRate: configInfo.fundFeeRate,
+    //     fundOwner: defaultAccount.publicKey.toString(),
+    //     protocolFeeRate: configInfo.protocolFeeRate,
+    //   }
+    // })
+    // console.log("🚀 ~ it ~ quoteExactIn currentPrice:", quoteExactIn.currentPrice.toString())
+    // console.log("🚀 ~ it ~ quoteExactIn executionPrice:", quoteExactIn.executionPrice.toString())
+    // console.log("🚀 ~ it ~ quoteExactIn inAmount:", quoteExactIn.inAmount.toString())
+    // console.log("🚀 ~ it ~ quoteExactIn outAmount:", quoteExactIn.outAmount.toString())
+    // console.log("🚀 ~ it ~ quoteExactIn feeAmount:", quoteExactIn.feeAmount.toString())
 
-    const insSwapPoolInfo = await client.swap({
-      payer: defaultAccount.publicKey,
-      poolInfo: poolInfo,
-      poolKeys: {
-        vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
-        rewardInfos: []
-      },
-      inputMint: quoteExactIn.inputMint,
-      amountIn: quoteExactIn.inAmount,
-      amountOutMin: quoteExactIn.slippageAmount,
-      priceLimit: quoteExactIn.priceLimit,
-      observationId: getPoolInfo.observationId,
-      // remainingAccounts: [insOpenPositionFromBase.address.tickArrayLower, insOpenPositionFromBase.address.tickArrayUpper], // calculator tick array
-      remainingAccounts: quoteExactIn.remainingAccounts,
+    // const insSwapPoolInfo = await client.swap({
+    //   payer: defaultAccount.publicKey,
+    //   poolInfo: poolInfo,
+    //   poolKeys: {
+    //     vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
+    //     rewardInfos: []
+    //   },
+    //   inputMint: quoteExactIn.inputMint,
+    //   amountIn: quoteExactIn.inAmount,
+    //   amountOutMin: quoteExactIn.slippageAmount,
+    //   priceLimit: quoteExactIn.priceLimit,
+    //   observationId: getPoolInfo.observationId,
+    //   // remainingAccounts: [insOpenPositionFromBase.address.tickArrayLower, insOpenPositionFromBase.address.tickArrayUpper], // calculator tick array
+    //   remainingAccounts: quoteExactIn.remainingAccounts,
 
-    })
+    // })
 
-    const transactionSwap = new Transaction().add(...insSwapPoolInfo.instructions);
-    const hashSwap = await connection.sendTransaction(transactionSwap, [defaultAccount], {
-      skipPreflight: true
-    });
-    console.log("🚀 ~ it ~ hashSwap:", hashSwap)
+    // const transactionSwap = new Transaction().add(...insSwapPoolInfo.instructions);
+    // const hashSwap = await connection.sendTransaction(transactionSwap, [defaultAccount], {
+    //   skipPreflight: true
+    // });
+    // console.log("🚀 ~ it ~ hashSwap:", hashSwap)
 
-    await connection.confirmTransaction(hashSwap, 'finalized');
+    // await connection.confirmTransaction(hashSwap, 'finalized');
 
 
 

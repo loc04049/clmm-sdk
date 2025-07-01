@@ -193,7 +193,7 @@ export function getTokenATokenBAndPrice(
   }
 }
 
-export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, programId: PublicKey, zeroForOne: boolean): PublicKey[] => {
+export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, programId: PublicKey, zeroForOne?: boolean): PublicKey[] => {
   const tickArrayBitmap = TickUtils.mergeTickArrayBitmap(poolState.tickArrayBitmap);
   const currentTickArrayStartIndex = TickUtils.getTickArrayStartIndexByTick(
     poolState.tickCurrent,
@@ -205,9 +205,11 @@ export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, p
     tickArrayBitmap,
     poolState.tickSpacing,
     currentTickArrayStartIndex,
-    Math.floor(FETCH_TICKARRAY_COUNT / 2),
+    // Math.floor(FETCH_TICKARRAY_COUNT / 2),
+    1000,
     zeroForOne,
   );
+
   for (const itemIndex of startIndexArray) {
     const { publicKey: tickArrayAddress } = getPdaTickArrayAddress(programId, address, itemIndex);
     tickArrayPks.push(tickArrayAddress);
@@ -228,7 +230,7 @@ export const getTickArrayCache = async ({
   connection: Connection;
   clmmProgramId: PublicKey;
   coder: BorshAccountsCoder;
-  zeroForOne: boolean;
+  zeroForOne?: boolean;
 }) => {
 
   const tickArrayPks = getTickArrayPks(poolId, poolInfo, clmmProgramId, zeroForOne);
@@ -241,7 +243,6 @@ export const getTickArrayCache = async ({
       accountInfoMap.set(pk.toBase58(), info);
     }
   });
-
 
   const tickArrayCache: TickArrayCache = {};
   for (const tickArrayPk of tickArrayPks) {
