@@ -1,5 +1,5 @@
-import { ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { AccountInfo, Connection, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
+import { AccountLayout, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createCloseAccountInstruction, createInitializeAccountInstruction, createSyncNativeInstruction, getAccount, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { AccountInfo, Connection, Keypair, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import BN from "bn.js";
 import { TickArrayBitmapExtensionType, TickArrayCache, TokenInfo } from "../type";
 import Decimal from "decimal.js";
@@ -10,6 +10,7 @@ import { getPdaTickArrayAddress } from "./pda";
 import { TickUtilsV1 } from "./tickV1";
 import { BorshAccountsCoder } from "@project-serum/anchor";
 import { WSOLMint } from "../constants";
+import { sha256 } from "@noble/hashes/sha256";
 export function u16ToBytes(num: number): Uint8Array {
   const arr = new ArrayBuffer(2);
   const view = new DataView(arr);
@@ -90,29 +91,84 @@ export function findProgramAddress(
   return { publicKey, nonce };
 }
 
+export function generatePubKey({
+  fromPublicKey,
+  programId = TOKEN_PROGRAM_ID,
+}: {
+  fromPublicKey: PublicKey;
+  programId: PublicKey;
+  assignSeed?: string;
+}): { publicKey: PublicKey; seed: string } {
+  const seed = Keypair.generate().publicKey.toBase58().slice(0, 32);
+  const publicKey = createWithSeed(fromPublicKey, seed, programId);
+  return { publicKey, seed };
+}
+
+function createWithSeed(fromPublicKey: PublicKey, seed: string, programId: PublicKey): PublicKey {
+  const buffer = Buffer.concat([fromPublicKey.toBuffer(), Buffer.from(seed), programId.toBuffer()]);
+  const publicKeyBytes = sha256(buffer);
+  return new PublicKey(publicKeyBytes);
+}
+
+
+const createWsol = async ({
+  owner,
+  tokenProgram = TOKEN_PROGRAM_ID,
+  connection,
+  amount
+}: {
+  owner: PublicKey,
+  tokenProgram?: PublicKey,
+  connection: Connection,
+  amount?: BN
+}): Promise<{ account: PublicKey; instructionsATA: TransactionInstruction[]; endInstructionsATA: TransactionInstruction[]; }> => {
+  const newTokenAccount = generatePubKey({ fromPublicKey: owner, programId: tokenProgram });
+  const balanceNeeded = await connection.getMinimumBalanceForRentExemption(AccountLayout.span);
+
+  const createAccountIns = SystemProgram.createAccountWithSeed({
+    fromPubkey: owner,
+    basePubkey: owner,
+    seed: newTokenAccount.seed,
+    newAccountPubkey: newTokenAccount.publicKey,
+    lamports: balanceNeeded + Number(amount?.toString() ?? 0),
+    space: AccountLayout.span,
+    programId: tokenProgram,
+  });
+
+  const initTokenAccountIns = createInitializeAccountInstruction(newTokenAccount.publicKey, WSOLMint, owner, tokenProgram);
+  const closeAccountIns = createCloseAccountInstruction(newTokenAccount.publicKey, owner, owner, [], tokenProgram);
+
+  return { account: newTokenAccount.publicKey, instructionsATA: [createAccountIns, initTokenAccountIns], endInstructionsATA: [closeAccountIns] }
+}
+
 export const getOrCreateATAWithExtension = async ({
   payer,
   connection,
   owner,
   mint,
-  instruction,
   programId = TOKEN_PROGRAM_ID,
   associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID,
   allowOwnerOffCurve = false,
-  amountInLamports,
+  amountSol,
 }: {
   connection: Connection;
   payer: PublicKey;
   owner: PublicKey;
   mint: PublicKey;
-  instruction: TransactionInstruction[];
   programId?: PublicKey;
   associatedTokenProgramId?: PublicKey;
   allowOwnerOffCurve?: boolean;
-  amountInLamports?: BN
-}) => {
+  amountSol?: BN
+}): Promise<{ account: PublicKey; instructionsATA: TransactionInstruction[]; endInstructionsATA: TransactionInstruction[]; }> => {
 
   const isWSol = WSOLMint.equals(mint);
+
+  if (isWSol) return await createWsol({
+    owner: payer,
+    tokenProgram: programId,
+    connection: connection,
+    amount: amountSol
+  })
 
   const ata = getAssociatedTokenAddressSync(
     mint,
@@ -124,18 +180,8 @@ export const getOrCreateATAWithExtension = async ({
 
   try {
     await getAccount(connection, ata, 'confirmed', programId);
-    if (isWSol && amountInLamports?.gt(new BN(0))) {
-      instruction.push(
-        SystemProgram.transfer({
-          fromPubkey: payer,
-          toPubkey: ata,
-          lamports: amountInLamports.toNumber(),
-        })
-      );
+    return { account: ata, instructionsATA: [], endInstructionsATA: [] }
 
-      instruction.push(createSyncNativeInstruction(ata));
-    }
-    return ata;
   } catch (e) {
     const ix = createAssociatedTokenAccountInstruction(
       payer,
@@ -145,18 +191,7 @@ export const getOrCreateATAWithExtension = async ({
       programId,
       associatedTokenProgramId,
     );
-    instruction.push(ix);
-    if (isWSol && amountInLamports?.gt(new BN(0))) {
-      instruction.push(
-        SystemProgram.transfer({
-          fromPubkey: payer,
-          toPubkey: ata,
-          lamports: amountInLamports.toNumber(),
-        })
-      );
-    }
-    if (isWSol) instruction.push(createSyncNativeInstruction(ata));
-    return ata;
+    return { account: ata, instructionsATA: [ix], endInstructionsATA: [] }
   }
 };
 
@@ -205,8 +240,8 @@ export const getTickArrayPks = (address: PublicKey, poolState: ClmmPoolLayout, p
     tickArrayBitmap,
     poolState.tickSpacing,
     currentTickArrayStartIndex,
-    // Math.floor(FETCH_TICKARRAY_COUNT / 2),
-    1000,
+    Math.floor(FETCH_TICKARRAY_COUNT / 2),
+    // 1000,
     zeroForOne,
   );
 

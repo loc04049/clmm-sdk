@@ -122,27 +122,27 @@ export class ClmmClient {
 
     const instructions: TransactionInstruction[] = [];
 
-    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountA, instructionsATA, endInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintA.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: baseAmount
+      amountSol: baseAmount
     })
 
-    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountB, instructionsATA: tokenBInstructionsATA, endInstructionsATA: tokenBEndInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintB.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: baseAmount
+      amountSol: baseAmount
     })
+
+    instructions.push(...instructionsATA, ...tokenBInstructionsATA)
 
     const insInfo = await ClmmInstrument.openPositionFromBaseInstructions({
       poolInfo,
@@ -165,6 +165,7 @@ export class ClmmClient {
 
 
     instructions.push(...insInfo.instructions);
+    instructions.push(...endInstructionsATA, ...tokenBEndInstructionsATA)
 
     return { ...insInfo, instructions }
   }
@@ -184,27 +185,27 @@ export class ClmmClient {
 
     const instructions: TransactionInstruction[] = [];
 
-    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountA, instructionsATA, endInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintA.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: amountMaxA,
+      amountSol: amountMaxA,
     })
 
-    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountB, instructionsATA: tokenBInstructionsATA, endInstructionsATA: tokenBEndInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintB.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: amountMaxB,
+      amountSol: amountMaxB,
     })
+
+    instructions.push(...instructionsATA, ...tokenBInstructionsATA)
 
     const ins = ClmmInstrument.increasePositionFromLiquidityInstructions({
       poolInfo,
@@ -221,6 +222,7 @@ export class ClmmClient {
       nft2022: (await this.connection.getAccountInfo(ownerPosition.nftMint))?.owner.equals(TOKEN_2022_PROGRAM_ID),
     });
     instructions.push(...ins.instructions);
+    instructions.push(...endInstructionsATA, ...tokenBEndInstructionsATA)
 
     return { ...ins, instructions }
   }
@@ -245,25 +247,25 @@ export class ClmmClient {
 
     const instructions: TransactionInstruction[] = [];
 
-    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountA, instructionsATA, endInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintA.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
     })
 
-    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountB, instructionsATA: tokenBInstructionsATA, endInstructionsATA: tokenBEndInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintB.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
     })
+
+    instructions.push(...instructionsATA, ...tokenBInstructionsATA)
 
     const rewardAccounts: PublicKey[] = [];
     // for (const itemReward of poolInfo.rewardDefaultInfos) {
@@ -330,6 +332,8 @@ export class ClmmClient {
       extInfo = { ...extInfo, ...closeInsInfo.address };
 
     }
+
+    instructions.push(...endInstructionsATA, ...tokenBEndInstructionsATA)
     return {
       instructions,
       address: extInfo
@@ -392,27 +396,27 @@ export class ClmmClient {
       );
     }
 
-    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountA, instructionsATA, endInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintA.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: amountIn,
+      amountSol: amountIn,
     })
 
-    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountB, instructionsATA: tokenBInstructionsATA, endInstructionsATA: tokenBEndInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintB.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: amountIn,
+      amountSol: amountIn,
     })
+
+    instructions.push(...instructionsATA, ...tokenBInstructionsATA)
 
     const swapInsInfo = ClmmInstrument.makeSwapBaseInInstructions({
       poolInfo,
@@ -429,8 +433,10 @@ export class ClmmClient {
       sqrtPriceLimitX64,
       remainingAccounts,
     })
+    instructions.push(...swapInsInfo.instructions)
+    instructions.push(...endInstructionsATA, ...tokenBEndInstructionsATA)
 
-    return swapInsInfo
+    return { ...swapInsInfo, instructions }
   }
 
   public async swapBaseOut({
@@ -472,27 +478,27 @@ export class ClmmClient {
         poolInfo.mintB.decimals,
       );
     }
-    const ownerTokenAccountA = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountA, instructionsATA, endInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintA.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintA.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: amountInMax,
+      amountSol: amountInMax,
     })
 
-    const ownerTokenAccountB = await getOrCreateATAWithExtension({
+    const { account: ownerTokenAccountB, instructionsATA: tokenBInstructionsATA, endInstructionsATA: tokenBEndInstructionsATA } = await getOrCreateATAWithExtension({
       payer,
       connection: this.connection,
       owner: payer,
       mint: new PublicKey(poolInfo.mintB.address),
-      instruction: instructions,
       programId: new PublicKey(poolInfo.mintB.programId),
       allowOwnerOffCurve: true,
-      amountInLamports: amountInMax,
+      amountSol: amountInMax,
     })
+
+    instructions.push(...instructionsATA, ...tokenBInstructionsATA)
 
     const swapInsInfo = ClmmInstrument.makeSwapBaseOutInstructions({
       poolInfo,
@@ -510,7 +516,11 @@ export class ClmmClient {
       remainingAccounts,
     })
 
-    return swapInsInfo
+
+    instructions.push(...swapInsInfo.instructions)
+    instructions.push(...endInstructionsATA, ...tokenBEndInstructionsATA)
+
+    return { ...swapInsInfo, instructions }
 
   }
 
