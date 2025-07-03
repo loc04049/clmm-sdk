@@ -1,18 +1,19 @@
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
-import { AmmConfigLayout, ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout } from "./layout";
+import { AmmConfigLayout, ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout, TickArrayLayout } from "./layout";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { getPdaAmmConfigId, getPdaMintExAccount } from "./utils/pda";
+import { getPdaAmmConfigId, getPdaMintExAccount, getPdaTickArrayAddress } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
 import { getOrCreateATAWithExtension, getTickArrayCache } from "./utils/util";
-import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64 } from "./utils/constants";
+import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64, U64_IGNORE_RANGE } from "./utils/constants";
 import BN from "bn.js";
 import { IDL } from "./idl/amm_v3";
 import { BorshAccountsCoder, Idl } from '@project-serum/anchor';
 import { PoolUtilsV1 } from "./utils/poolV1";
 import { TickUtils } from "./utils/tick";
+import { PositionUtils } from "./utils/position";
 
 export class ClmmClient {
   connection: Connection;
@@ -734,6 +735,49 @@ export class ClmmClient {
     }
   }
 
+  public async getPositionFees({
+    poolInfo,
+    positionInfo,
+    poolId
+  }: {
+    poolInfo: ClmmPoolLayout,
+    positionInfo: ClmmPositionLayout
+    poolId: PublicKey
+  }) {
+
+    const startTickLowerIndex = TickUtils.getTickArrayStartIndexByTick(
+      positionInfo.tickLower,
+      poolInfo.tickSpacing
+    );
+    const startTickUpperIndex = TickUtils.getTickArrayStartIndexByTick(
+      positionInfo.tickUpper,
+      poolInfo.tickSpacing
+    );
+
+    const tickArrayPDALower = getPdaTickArrayAddress(this.clmmProgramId, poolId, startTickLowerIndex);
+    const tickArrayPDAUpper = getPdaTickArrayAddress(this.clmmProgramId, poolId, startTickUpperIndex);
+
+    const tickUpperData = await this.connection.getAccountInfo(tickArrayPDAUpper.publicKey);
+    const tickLowerData = await this.connection.getAccountInfo(tickArrayPDALower.publicKey);
+
+    if (!tickLowerData?.data || !tickUpperData?.data) {
+      throw new Error("tickData null");
+    }
+
+    const tickArrayLower = TickArrayLayout.decode(tickLowerData.data)
+    const tickArrayUpper = TickArrayLayout.decode(tickUpperData.data)
+
+    const tickLowerState = tickArrayLower.ticks[TickUtils.getTickOffsetInArray(positionInfo.tickLower, poolInfo.tickSpacing)]
+    const tickUpperState = tickArrayUpper.ticks[TickUtils.getTickOffsetInArray(positionInfo.tickUpper, poolInfo.tickSpacing)]
+
+    const tokenFees = PositionUtils.GetPositionFeesV2(poolInfo, positionInfo, tickLowerState, tickUpperState)
+    const BN_ZERO = new BN(0)
+    const [tokenFeeAmountA, tokenFeeAmountB] = [
+      tokenFees.tokenFeeAmountA.gte(BN_ZERO) && tokenFees.tokenFeeAmountA.lt(U64_IGNORE_RANGE) ? tokenFees.tokenFeeAmountA : BN_ZERO,
+      tokenFees.tokenFeeAmountB.gte(BN_ZERO) && tokenFees.tokenFeeAmountB.lt(U64_IGNORE_RANGE) ? tokenFees.tokenFeeAmountB : BN_ZERO
+    ]
+    return { tokenFeeAmountA, tokenFeeAmountB }
+  }
 }
 
 
