@@ -333,7 +333,8 @@ export interface OpenPositionFromBase {
 }
 
 type rewardDefaultInfo = {
-  mint: TokenInfo
+  mint: TokenInfo,
+  perSecond: number;
 }
 
 export type PoolInfoConcentratedItem = {
@@ -420,3 +421,48 @@ export interface QuoteParams {
   inputMint: PublicKey;
 }
 
+export enum AprKey {
+  Day = 'day',
+  Week = 'week',
+  Month = 'month'
+}
+
+export type GetAprPositionParameters = {
+  poolInfo: PoolInfoConcentratedItem
+  aprInfoPool: AprInfoPool
+  poolLiquidity: BN
+  positionAccount: ClmmPositionLayout
+  tokenPrices: { [mint: string]: { value: number } }
+  timeBasis: AprKey
+  planType: 'D' | 'M'
+  chainTimeOffsetMs?: number
+}
+
+
+export type AprInfoPool = {
+  day: PoolInfoCountItem;
+  week: PoolInfoCountItem;
+  month: PoolInfoCountItem;
+}
+
+export interface PoolInfoCountItem {
+  volumeFee: number; // day or week or month
+  apr: number;
+  feeApr: number;
+  priceMin: number;
+  priceMax: number;
+  rewardApr: number[];
+}
+
+export interface GetAprPoolTickParameters {
+  poolInfo: PoolInfoConcentratedItem
+  aprInfoPool: AprInfoPool
+  poolLiquidity: BN
+  tickLower: number
+  tickUpper: number
+  planType: 'D' | 'M'
+  tokenPrices: Record<string, any>
+  timeBasis: AprKey
+  chainTimeOffsetMs?: number
+  liquidity: BN
+}

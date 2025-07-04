@@ -3,6 +3,8 @@ import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import BN from "bn.js";
 
 import {
+  AprInfoPool,
+  AprKey,
   ClmmPoolInfo,
   ClmmPoolRewardInfo,
   ClmmPoolRewardLayoutInfo,
@@ -921,10 +923,11 @@ export class PoolUtils {
     aprType,
     positionTickLowerIndex,
     positionTickUpperIndex,
+    aprInfoPool
   }: {
-    poolInfo: ApiV3PoolInfoConcentratedItem;
-    aprType: "day" | "week" | "month";
-
+    poolInfo: PoolInfoConcentratedItem;
+    aprType: AprKey;
+    aprInfoPool: AprInfoPool;
     positionTickLowerIndex: number;
     positionTickUpperIndex: number;
   }): {
@@ -932,7 +935,7 @@ export class PoolUtils {
     rewardsApr: number[];
     apr: number;
   } {
-    const aprInfo = poolInfo[aprType];
+    const aprInfo = aprInfoPool[aprType];
 
     const priceLower = TickUtils.getTickPrice({
       poolInfo,
@@ -976,10 +979,12 @@ export class PoolUtils {
     positionTickLowerIndex,
     positionTickUpperIndex,
     chainTime,
+    aprInfoPool
   }: {
-    poolInfo: ApiV3PoolInfoConcentratedItem;
+    poolInfo: PoolInfoConcentratedItem;
     poolLiquidity: BN;
-    aprType: "day" | "week" | "month";
+    aprType: AprKey
+    aprInfoPool: AprInfoPool;
 
     mintPrice: { [mint: string]: { value: number } };
 
@@ -994,7 +999,7 @@ export class PoolUtils {
     apr: number;
   } {
     const aprTypeDay = aprType === "day" ? 1 : aprType === "week" ? 7 : aprType === "month" ? 30 : 0;
-    const aprInfo = poolInfo[aprType];
+    const aprInfo = aprInfoPool[aprType];
     const mintPriceA = mintPrice[solToWSol(poolInfo.mintA.address).toString()];
     const mintPriceB = mintPrice[solToWSol(poolInfo.mintB.address).toString()];
     const mintDecimalsA = poolInfo.mintA.decimals;

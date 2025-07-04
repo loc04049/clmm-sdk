@@ -6,12 +6,12 @@ import { getPdaAmmConfigId } from '../utils/pda';
 import { CLMM_PROGRAM_ID } from '../constants/programIds';
 import Decimal from 'decimal.js';
 import { BN } from 'bn.js';
-import { getOrCreateATAWithExtensionOld, getTickArrayPks, getTokenATokenBAndPrice } from '../utils/util';
+import { getTickArrayPks, getTokenATokenBAndPrice } from '../utils/util';
 import { PoolUtils } from '../utils/pool';
 import { SqrtPriceMath, TickMath } from '../utils/math';
 import { TickUtils } from '../utils/tick';
 import { TickQuery } from '../utils/tickQuery';
-import { PoolInfoConcentratedItem, TickArrayBitmapExtensionType, TickArrayCache } from '../type';
+import { AprKey, PoolInfoConcentratedItem, TickArrayBitmapExtensionType, TickArrayCache } from '../type';
 import { MIN_SQRT_PRICE_X64, SwapMode } from '../utils/constants';
 import { PoolUtilsV1 } from '../utils/poolV1';
 import { RPC, WSOLMint } from '../constants';
@@ -136,14 +136,15 @@ describe('ClmmClient', () => {
 
     const getEpochInfo = await connection.getEpochInfo()
 
-    const { price: pricePool } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(9919.98))
-    const { price: priceMin, mintA, mintB } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(8377.032435))
-    // const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(10238.7925))
-    // const [priceLower, priceUpper] = [Math.min(priceMin.toNumber(), priceMax.toNumber()), Math.max(priceMin.toNumber(), priceMax.toNumber())]
-    // const tickLower = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceLower), configInfo.tickSpacing, getPoolInfo.mintDecimalsA, getPoolInfo.mintDecimalsB)
-    // console.log("🚀 ~ it ~ tickLower:", tickLower)
-    // const tickUpper = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceUpper), configInfo.tickSpacing, getPoolInfo.mintDecimalsA, getPoolInfo.mintDecimalsB)
-    // console.log("🚀 ~ it ~ tickUpper:", tickUpper)
+    // const { price: pricePool } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(9919.98))
+    const { price: priceMin, mintA, mintB } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(8164.496117276959463))
+    const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(10299.376894980266773))
+    const [priceLower, priceUpper] = [Math.min(priceMin.toNumber(), priceMax.toNumber()), Math.max(priceMin.toNumber(), priceMax.toNumber())]
+    const tickLower = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceLower), configInfo.tickSpacing, getPoolInfo.mintDecimalsA, getPoolInfo.mintDecimalsB)
+    const tickUpper = TickMath.getTickWithPriceAndTickspacing(new Decimal(priceUpper), configInfo.tickSpacing, getPoolInfo.mintDecimalsA, getPoolInfo.mintDecimalsB)
+
+
+
     const poolInfo: PoolInfoConcentratedItem = {
       price: currentPrice.price.toNumber(),
       programId: client.clmmProgramId.toString(),
@@ -157,40 +158,103 @@ describe('ClmmClient', () => {
       rewardDefaultInfos: [],
     }
 
-    const fee = await client.getPositionFees({
-      poolInfo: getPoolInfo,
-      positionInfo: positionInfo,
-      poolId: new PublicKey(poolId),
+    const infoLiquidityAmountAB = await PoolUtils.getLiquidityAmountOutFromAmountIn({
+      poolInfo: poolInfo,
+      inputA: false,
+      // tickLower: tickLower,
+      // tickUpper: tickUpper,
+      tickLower: positionInfo.tickLower,
+      tickUpper: positionInfo.tickUpper,
+      amount: new BN(1000000),
+      // amount: new BN(new Decimal(1 || '0').mul(10 ** (true ? mintA.decimals : mintB.decimals)).toFixed(0)),
+      slippage: 0.1,
+      add: false,
+      // epochInfo: getEpochInfo,
+      epochInfo: {
+        epoch: 0,
+        slotIndex: 0,
+        slotsInEpoch: 0,
+        absoluteSlot: 0,
+      },
+      amountHasFee: true
     })
-    console.log("🚀 ~ it ~ fee:", fee.tokenFeeAmountA.toNumber())
-    console.log("🚀 ~ it ~ fee:", fee.tokenFeeAmountB.toNumber())
+    console.log("🚀 ~ it ~ infoLiquidityAmountAB:", infoLiquidityAmountAB.amountSlippageA.amount.toNumber())
+    console.log("🚀 ~ it ~ infoLiquidityAmountAB:", infoLiquidityAmountAB.amountSlippageB.amount.toNumber())
 
 
+    const aprInfoPool = {
+      day: {
+        volumeFee: 1297.9415329551491,
+        apr: 135.55,
+        feeApr: 135.55,
+        priceMin:
+          8901.865644374646,
+        priceMax:
+          10291.190090343198,
+        rewardApr: []
+      },
+      week: {
+        volumeFee: 1306.9687262137802,
+        apr: 137.72,
+        feeApr: 137.72,
+        priceMin: 8901.865644374646,
+        priceMax: 10291.190090343198,
+        rewardApr: []
+      },
+      month: {
+        volumeFee: 1306.9687262137802,
+        apr: 137.72,
+        feeApr: 137.72,
+        priceMin: 8901.865644374646,
+        priceMax: 10291.190090343198,
+        rewardApr: []
+      },
+    }
 
-    // const infoTest = await client.getInfoTickArray({
+    const newAprPosition = client.getPositionAprCore({
+      poolInfo,
+      positionAccount: positionInfo,
+      aprInfoPool,
+      tokenPrices: {
+        [poolInfo.mintA.address]: { value: 150.56 },
+        [poolInfo.mintB.address]: { value: 0.01609 },
+      },
+      poolLiquidity: getPoolInfo.liquidity,
+      timeBasis: AprKey.Day,
+      planType: 'M'
+    })
+    console.log("🚀 ~ it ~ newAprPosition:", newAprPosition)
+
+    const newAprPool = client.getPoolTickAprCore({
+      poolInfo,
+      aprInfoPool,
+      tickLower: tickLower,
+      tickUpper: tickUpper,
+      tokenPrices: {
+        [poolInfo.mintA.address]: { value: 150.56 },
+        [poolInfo.mintB.address]: { value: 0.01609 },
+      },
+      timeBasis: AprKey.Day,
+      planType: 'M',
+      poolLiquidity: getPoolInfo.liquidity,
+      liquidity: infoLiquidityAmountAB.liquidity
+    })
+    console.log("🚀 ~ it ~ newAprPool:", newAprPool)
+    console.log("🚀 ~ it ~ newAprPosition:", newAprPosition)
+
+    // const fee = await client.getPositionFees({
+    //   poolInfo: getPoolInfo,
+    //   positionInfo: positionInfo,
+    //   poolId: new PublicKey(poolId),
+    // })
+
+    // const getInfoTickArray = await client.getInfoTickArray({
     //   poolId: new PublicKey(poolId),
     //   poolInfo: getPoolInfo
     // })
-    // console.log("🚀 ~ it ~ infoTest:", infoTest)
+    // console.log("🚀 ~ it ~ getInfoTickArray:", getInfoTickArray)
 
-    // const infoLiquidityAmountAB = await PoolUtils.getLiquidityAmountOutFromAmountIn({
-    //   poolInfo: poolInfo,
-    //   inputA: true,
-    //   tickLower: positionInfo.tickLower,
-    //   tickUpper: positionInfo.tickUpper,
-    //   amount: new BN(10),
-    //   // amount: new BN(new Decimal(1 || '0').mul(10 ** (true ? mintA.decimals : mintB.decimals)).toFixed(0)),
-    //   slippage: 0.1,
-    //   add: true,
-    //   // epochInfo: getEpochInfo,
-    //   epochInfo: {
-    //     epoch: 0,
-    //     slotIndex: 0,
-    //     slotsInEpoch: 0,
-    //     absoluteSlot: 0,
-    //   },
-    //   amountHasFee: true
-    // })
+
 
     // const infoAmountABFromLiquidity = await PoolUtils.getAmountsFromLiquidity({
     //   poolInfo,

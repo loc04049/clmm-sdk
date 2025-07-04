@@ -1,5 +1,6 @@
+import { publicKey } from '@raydium-io/raydium-sdk-v2';
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
+import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, GetAprPoolTickParameters, GetAprPositionParameters, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
 import { AmmConfigLayout, ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout, TickArrayLayout } from "./layout";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
@@ -14,6 +15,7 @@ import { BorshAccountsCoder, Idl } from '@project-serum/anchor';
 import { PoolUtilsV1 } from "./utils/poolV1";
 import { TickUtils } from "./utils/tick";
 import { PositionUtils } from "./utils/position";
+import { PoolUtils } from './utils/pool';
 
 export class ClmmClient {
   connection: Connection;
@@ -778,7 +780,157 @@ export class ClmmClient {
     ]
     return { tokenFeeAmountA, tokenFeeAmountB }
   }
+
+  public getPositionAprCore({
+    poolInfo,
+    positionAccount,
+    aprInfoPool,
+    tokenPrices,
+    poolLiquidity,
+    timeBasis,
+    planType,
+    chainTimeOffsetMs = 0
+  }: GetAprPositionParameters) {
+    if (positionAccount.liquidity.isZero()) {
+      return {
+        fee: {
+          apr: 0,
+          percentInTotal: 0
+        },
+        rewards: poolInfo.rewardDefaultInfos.map((i, idx) => ({
+          apr: 0,
+          percentInTotal: 0,
+          mint: poolInfo.rewardDefaultInfos[idx].mint
+        })),
+        apr: 0
+      }
+    }
+    if (planType === 'D') {
+      const planBApr = PoolUtils.estimateAprsForPriceRangeDelta({
+        poolInfo,
+        aprInfoPool,
+        aprType: timeBasis,
+        poolLiquidity,
+        mintPrice: tokenPrices,
+        positionTickLowerIndex: Math.min(positionAccount.tickLower, positionAccount.tickUpper),
+        positionTickUpperIndex: Math.max(positionAccount.tickLower, positionAccount.tickUpper),
+        chainTime: (Date.now() + chainTimeOffsetMs) / 1000,
+        liquidity: positionAccount.liquidity
+      })
+      const slicedRewardApr = planBApr.rewardsApr.slice(0, poolInfo.rewardDefaultInfos.length)
+      const total = [planBApr.feeApr, ...slicedRewardApr].reduce((a, b) => a + b, 0)
+      return {
+        fee: {
+          apr: planBApr.feeApr,
+          percentInTotal: (planBApr.feeApr / total) * 100
+        },
+        rewards: slicedRewardApr.map((i, idx) => ({
+          apr: i,
+          percentInTotal: (i / total) * 100,
+          mint: poolInfo.rewardDefaultInfos[idx].mint
+        })),
+        apr: isNaN(planBApr.apr) ? 0 : planBApr.apr
+      }
+    } else {
+      const planCApr = PoolUtils.estimateAprsForPriceRangeMultiplier({
+        poolInfo,
+        aprInfoPool,
+        aprType: timeBasis,
+        positionTickLowerIndex: Math.min(positionAccount.tickLower, positionAccount.tickUpper),
+        positionTickUpperIndex: Math.max(positionAccount.tickLower, positionAccount.tickUpper)
+      })
+      const slicedRewardApr = planCApr.rewardsApr.slice(0, poolInfo.rewardDefaultInfos.length)
+      const total = [planCApr.feeApr, ...slicedRewardApr].reduce((a, b) => a + b, 0)
+      return {
+        fee: {
+          apr: planCApr.feeApr,
+          percentInTotal: (planCApr.feeApr / total) * 100
+        },
+        rewards: slicedRewardApr.map((i, idx) => ({
+          apr: i,
+          percentInTotal: (i / total) * 100,
+          mint: poolInfo.rewardDefaultInfos[idx].mint
+        })),
+        apr: isNaN(planCApr.apr) ? 0 : planCApr.apr
+      }
+    }
+  }
+
+  public getPoolTickAprCore({
+    poolInfo,
+    aprInfoPool,
+    tickLower,
+    tickUpper,
+    tokenPrices,
+    timeBasis,
+    planType,
+    chainTimeOffsetMs = 0,
+    poolLiquidity,
+    liquidity
+  }: GetAprPoolTickParameters) {
+    if (liquidity.isZero()) {
+      return {
+        fee: {
+          apr: 0,
+          percentInTotal: 0
+        },
+        rewards: poolInfo.rewardDefaultInfos.map((i, idx) => ({
+          apr: 0,
+          percentInTotal: 0,
+          mint: poolInfo.rewardDefaultInfos[idx].mint
+        })),
+        apr: 0
+      }
+    }
+    if (planType === 'D') {
+      const planBApr = PoolUtils.estimateAprsForPriceRangeDelta({
+        aprInfoPool,
+        poolInfo,
+        poolLiquidity,
+        aprType: timeBasis,
+        mintPrice: tokenPrices,
+        positionTickLowerIndex: Math.min(tickLower, tickUpper),
+        positionTickUpperIndex: Math.max(tickLower, tickUpper),
+        chainTime: (Date.now() + chainTimeOffsetMs) / 1000,
+        liquidity
+      })
+      const slicedRewardApr = planBApr.rewardsApr.slice(0, poolInfo.rewardDefaultInfos.length)
+      const total = [planBApr.feeApr, ...slicedRewardApr].reduce((a, b) => a + b, 0)
+      return {
+        fee: {
+          apr: planBApr.feeApr,
+          percentInTotal: (planBApr.feeApr / total) * 100
+        },
+        rewards: slicedRewardApr.map((i, idx) => ({
+          apr: i,
+          percentInTotal: (i / total) * 100,
+          mint: poolInfo.rewardDefaultInfos[idx].mint
+        })),
+        apr: planBApr.apr
+      }
+    }
+    const planCApr = PoolUtils.estimateAprsForPriceRangeMultiplier({
+      aprInfoPool,
+      poolInfo,
+      aprType: timeBasis,
+      positionTickLowerIndex: Math.min(tickLower, tickUpper),
+      positionTickUpperIndex: Math.max(tickLower, tickUpper)
+    })
+    const slicedRewardApr = planCApr.rewardsApr.slice(0, poolInfo.rewardDefaultInfos.length)
+    const total = [planCApr.feeApr, ...slicedRewardApr].reduce((a, b) => a + b, 0)
+    return {
+      fee: {
+        apr: planCApr.feeApr,
+        percentInTotal: (planCApr.feeApr / total) * 100
+      },
+      rewards: slicedRewardApr.map((i, idx) => ({
+        apr: i,
+        percentInTotal: (i / total) * 100,
+        mint: poolInfo.rewardDefaultInfos[idx].mint
+      })),
+      apr: planCApr.apr
+    }
+
+  }
 }
-
-
 
