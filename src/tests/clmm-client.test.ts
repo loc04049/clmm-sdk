@@ -62,9 +62,9 @@ describe('ClmmClient', () => {
     // console.log("🚀 ~ it ~ hashConfig:", hashConfig)
 
     const mint1 = {
-      address: 'So11111111111111111111111111111111111111112',
+      address: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
       // address: inputMint.publicKey.toString(),
-      decimals: 9,
+      decimals: 6,
       symbol: 'INPUT',
       name: 'Input Token',
       chainId: 'solanaDev',
@@ -74,7 +74,7 @@ describe('ClmmClient', () => {
     }
 
     const mint2 = {
-      address: '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv',
+      address: 'SarosY6Vscao718M4A778z4CGtvcwcGef5M9MEH1LGL',
       // address: outputMint.publicKey.toString(),
       decimals: 6,
       symbol: 'OUTPUT',
@@ -101,11 +101,9 @@ describe('ClmmClient', () => {
     //   decimals: mint2.decimals,
     // });
 
-    // const tickSpacing = 60
-    // const ammConfigId = 'HfFPxHvPftA9ueEgJ4HtM66ZBsfm18QGbC1MGrHo77Vs'
-    const ammConfigId = '3XCQJQryqpDvvZBfGxR7CLAw5dpGJ9aa7kt1jRLdyxuZ'
-    const poolId = 'B4Vwozy1FGtp8SELXSXydWSzavPUGnJ77DURV2k4MhUV'
-    const positionId = 'AyiWPCSkLRokdCBDyD2y1B8mj3CsxRq6E94dGqpTQi5M'
+    const ammConfigId = 'E64NGkDLLCdQ2yFNPcavaKptrEgmiQaNykUuLC1Qgwyp'
+    const poolId = 'J3FBhMSKi5eRB1feMBaxqbBM9ZBzr5TH2H2Q7xQsptHF'
+    const positionId = '5zGF4g1QxXAb4f4r1hPrRXb1gHRPG5wTwALRdvRZPwVZ'
 
     // const insCreatePoolInfo = await client.createPool({
     //   owner: defaultAccount.publicKey,
@@ -134,8 +132,6 @@ describe('ClmmClient', () => {
 
     const positionInfo = await client.getPositionInfo(positionId)
 
-    const getEpochInfo = await connection.getEpochInfo()
-
     // const { price: pricePool } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(9919.98))
     const { price: priceMin, mintA, mintB } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(8164.496117276959463))
     const { price: priceMax } = getTokenATokenBAndPrice(mint1, mint2, new Decimal(10299.376894980266773))
@@ -158,29 +154,15 @@ describe('ClmmClient', () => {
       rewardDefaultInfos: [],
     }
 
-    const infoLiquidityAmountAB = await PoolUtils.getLiquidityAmountOutFromAmountIn({
+    const infoLiquidityAmountAB = await client.computePairAmountLiquidity({
+      inputA: true,
       poolInfo: poolInfo,
-      inputA: false,
-      // tickLower: tickLower,
-      // tickUpper: tickUpper,
       tickLower: positionInfo.tickLower,
       tickUpper: positionInfo.tickUpper,
-      amount: new BN(1000000),
-      // amount: new BN(new Decimal(1 || '0').mul(10 ** (true ? mintA.decimals : mintB.decimals)).toFixed(0)),
-      slippage: 0.1,
-      add: false,
-      // epochInfo: getEpochInfo,
-      epochInfo: {
-        epoch: 0,
-        slotIndex: 0,
-        slotsInEpoch: 0,
-        absoluteSlot: 0,
-      },
-      amountHasFee: true
+      amount: new BN(100),
+      slippage: 0,
+      add: true
     })
-    console.log("🚀 ~ it ~ infoLiquidityAmountAB:", infoLiquidityAmountAB.amountSlippageA.amount.toNumber())
-    console.log("🚀 ~ it ~ infoLiquidityAmountAB:", infoLiquidityAmountAB.amountSlippageB.amount.toNumber())
-
 
     const aprInfoPool = {
       day: {
@@ -211,36 +193,36 @@ describe('ClmmClient', () => {
       },
     }
 
-    const newAprPosition = client.getPositionAprCore({
-      poolInfo,
-      positionAccount: positionInfo,
-      aprInfoPool,
-      tokenPrices: {
-        [poolInfo.mintA.address]: { value: 150.56 },
-        [poolInfo.mintB.address]: { value: 0.01609 },
-      },
-      poolLiquidity: getPoolInfo.liquidity,
-      timeBasis: AprKey.Day,
-      planType: 'M'
-    })
-    console.log("🚀 ~ it ~ newAprPosition:", newAprPosition)
+    // const newAprPosition = client.getPositionAprCore({
+    //   poolInfo,
+    //   positionAccount: positionInfo,
+    //   aprInfoPool,
+    //   tokenPrices: {
+    //     [poolInfo.mintA.address]: { value: 150.56 },
+    //     [poolInfo.mintB.address]: { value: 0.01609 },
+    //   },
+    //   poolLiquidity: getPoolInfo.liquidity,
+    //   timeBasis: AprKey.Day,
+    //   planType: 'M'
+    // })
+    // console.log("🚀 ~ it ~ newAprPosition:", newAprPosition)
 
-    const newAprPool = client.getPoolTickAprCore({
-      poolInfo,
-      aprInfoPool,
-      tickLower: tickLower,
-      tickUpper: tickUpper,
-      tokenPrices: {
-        [poolInfo.mintA.address]: { value: 150.56 },
-        [poolInfo.mintB.address]: { value: 0.01609 },
-      },
-      timeBasis: AprKey.Day,
-      planType: 'M',
-      poolLiquidity: getPoolInfo.liquidity,
-      liquidity: infoLiquidityAmountAB.liquidity
-    })
-    console.log("🚀 ~ it ~ newAprPool:", newAprPool)
-    console.log("🚀 ~ it ~ newAprPosition:", newAprPosition)
+    // const newAprPool = client.getPoolTickAprCore({
+    //   poolInfo,
+    //   aprInfoPool,
+    //   tickLower: tickLower,
+    //   tickUpper: tickUpper,
+    //   tokenPrices: {
+    //     [poolInfo.mintA.address]: { value: 150.56 },
+    //     [poolInfo.mintB.address]: { value: 0.01609 },
+    //   },
+    //   timeBasis: AprKey.Day,
+    //   planType: 'M',
+    //   poolLiquidity: getPoolInfo.liquidity,
+    //   liquidity: infoLiquidityAmountAB.liquidity
+    // })
+    // console.log("🚀 ~ it ~ newAprPool:", newAprPool)
+    // console.log("🚀 ~ it ~ newAprPosition:", newAprPosition)
 
     // const fee = await client.getPositionFees({
     //   poolInfo: getPoolInfo,
@@ -299,28 +281,29 @@ describe('ClmmClient', () => {
 
 
     // // add pool
+    console.log("🚀 ~ it ~ infoLiquidityAmountAB:", infoLiquidityAmountAB)
 
 
-    // const insAddPoolInfo = await client.increasePositionFromLiquidity({
-    //   payer: defaultAccount.publicKey,
-    //   poolInfo: poolInfo,
-    //   poolKeys: {
-    //     vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
-    //     rewardInfos: []
-    //   },
-    //   ownerPosition: positionInfo,
-    //   liquidity: infoLiquidityAmountAB.liquidity,
-    //   amountMaxA: infoLiquidityAmountAB.amountSlippageA.amount,
-    //   amountMaxB: infoLiquidityAmountAB.amountSlippageB.amount,
-    // })
+    const insAddPoolInfo = await client.increasePositionFromLiquidity({
+      payer: defaultAccount.publicKey,
+      poolInfo: poolInfo,
+      poolKeys: {
+        vault: { A: getPoolInfo.vaultA.toString(), B: getPoolInfo.vaultB.toString() },
+        rewardInfos: []
+      },
+      ownerPosition: positionInfo,
+      liquidity: infoLiquidityAmountAB.liquidity,
+      amountMaxA: infoLiquidityAmountAB.amountSlippageA,
+      amountMaxB: infoLiquidityAmountAB.amountSlippageB,
+    })
 
-    // const transactionAddLiquidity = new Transaction().add(...insAddPoolInfo.instructions);
-    // const hashAddLiquidity = await connection.sendTransaction(transactionAddLiquidity, [defaultAccount], {
-    //   skipPreflight: true
-    // });
-    // console.log("🚀 ~ it ~ hashAddLiquidity:", hashAddLiquidity)
+    const transactionAddLiquidity = new Transaction().add(...insAddPoolInfo.instructions);
+    const hashAddLiquidity = await connection.sendTransaction(transactionAddLiquidity, [defaultAccount], {
+      skipPreflight: true
+    });
+    console.log("🚀 ~ it ~ hashAddLiquidity:", hashAddLiquidity)
 
-    // await connection.confirmTransaction(hashAddLiquidity, 'finalized');
+    await connection.confirmTransaction(hashAddLiquidity, 'finalized');
 
     // // Swap ExactIn
 

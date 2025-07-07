@@ -932,5 +932,50 @@ export class ClmmClient {
     }
 
   }
+  public async computePairAmountLiquidity({
+    inputA,
+    poolInfo,
+    tickLower,
+    tickUpper,
+    amount,
+    slippage,
+    add
+  }: {
+    inputA: boolean
+    poolInfo: PoolInfoConcentratedItem,
+    tickLower: number
+    tickUpper: number
+    amount: BN
+    slippage: number,
+    add: boolean
+  }) {
+
+    const getEpochInfo = await this.connection.getEpochInfo()
+
+    const res = await PoolUtils.getLiquidityAmountOutFromAmountIn({
+      poolInfo,
+      inputA,
+      tickLower,
+      tickUpper,
+      amount: amount,
+      slippage: 0,
+      add,
+      epochInfo: getEpochInfo,
+      amountHasFee: true
+    })
+
+    const amountA = new BN(new Decimal(res.amountA.amount.toString()).toFixed(0))
+    const amountB = new BN(new Decimal(res.amountB.amount.toString()).toFixed(0))
+
+
+    return {
+      amountA,
+      amountSlippageA: inputA ? amountA : new BN(new Decimal(res.amountSlippageA.amount.toString()).mul(1 + slippage).toFixed(0)),
+      amountB,
+      amountSlippageB: inputA ? new BN(new Decimal(res.amountSlippageB.amount.toString()).mul(1 + slippage).toFixed(0)) : amountB,
+      liquidity: new BN(new Decimal(res.liquidity.toString()).mul(1 - slippage).toFixed(0)),
+      calResult: res
+    }
+  }
 }
 
