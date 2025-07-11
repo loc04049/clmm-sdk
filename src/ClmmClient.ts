@@ -1,11 +1,11 @@
-import { publicKey } from '@raydium-io/raydium-sdk-v2';
+import { getMultipleAccountsInfo, publicKey } from '@raydium-io/raydium-sdk-v2';
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, GetAprPoolTickParameters, GetAprPositionParameters, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
 import { AmmConfigLayout, ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout, TickArrayLayout } from "./layout";
 import Decimal from "decimal.js";
 import { SqrtPriceMath } from "./utils/math";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { getPdaAmmConfigId, getPdaMintExAccount, getPdaTickArrayAddress } from "./utils/pda";
+import { getPdaAmmConfigId, getPdaExBitmapAccount, getPdaMintExAccount, getPdaTickArrayAddress } from "./utils/pda";
 import { ClmmInstrument } from "./instrument";
 import { getOrCreateATAWithExtension, getTickArrayCache } from "./utils/util";
 import { MAX_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64, U64_IGNORE_RANGE } from "./utils/constants";
@@ -13,7 +13,7 @@ import BN from "bn.js";
 import { IDL } from "./idl/amm_v3";
 import { BorshAccountsCoder, Idl } from '@project-serum/anchor';
 import { PoolUtilsV1 } from "./utils/poolV1";
-import { TickUtils } from "./utils/tick";
+import { TickArray, TickUtils } from "./utils/tick";
 import { PositionUtils } from "./utils/position";
 import { PoolUtils } from './utils/pool';
 
@@ -559,6 +559,101 @@ export class ClmmClient {
     return insInfo
   }
 
+  public async getFullTickArrayCache({
+    poolId,
+    poolInfo,
+  }: {
+    poolId: PublicKey,
+    poolInfo: ClmmPoolLayout
+  }): Promise<{ [key: string]: TickArray; }> {
+    const tickArraysToFetch: PublicKey[] = [];
+
+    const pdaPdaExBitmap = getPdaExBitmapAccount(this.clmmProgramId, poolId).publicKey
+    const exBitData = await PoolUtils.fetchExBitmaps({
+      connection: this.connection,
+      exBitmapAddress: [pdaPdaExBitmap],
+      batchRequest: false,
+    });
+
+
+    const allInitializedTickArrayIndex: number[] = TickUtils.getAllInitializedTickArrayStartIndex(
+      poolInfo.tickArrayBitmap,
+      exBitData[pdaPdaExBitmap.toString()],
+      poolInfo.tickSpacing,
+    );
+
+    for (let i = 0; i < allInitializedTickArrayIndex.length; i++) {
+      const { publicKey: tickArrayAddress } = getPdaTickArrayAddress(this.clmmProgramId, poolId, allInitializedTickArrayIndex[i]);
+      tickArraysToFetch.push(tickArrayAddress);
+    }
+
+    const fetchedTickArrays = (await getMultipleAccountsInfo(this.connection, tickArraysToFetch)).map((i) =>
+      i !== null ? TickArrayLayout.decode(i.data) : null,
+    );
+
+    const tickArrayCache: { [key: string]: TickArray } = {};
+    for (let i = 0; i < tickArraysToFetch.length; i++) {
+      const _info = fetchedTickArrays[i];
+      if (_info === null) continue;
+
+      tickArrayCache[_info.startTickIndex] = {
+        ..._info,
+        address: tickArraysToFetch[i],
+      };
+    }
+
+    return tickArrayCache
+  }
+
+
+  public async getLiquidityFullTickPool({
+    poolId,
+    poolInfo,
+  }: {
+    poolId: PublicKey,
+    poolInfo: ClmmPoolLayout
+  }): Promise<{ tick: string; price: string; liquidity: number; }[]> {
+
+
+    const tickArrayCache = await this.getFullTickArrayCache({
+      poolId,
+      poolInfo
+    })
+
+    const dataInfoTick: { tick: string; price: string, liquidityGross: number, liquidityNet: number }[] = [];
+    let liquidityActive = 0;
+
+    Object.values(tickArrayCache).forEach(tickArray => {
+      tickArray.ticks.forEach(tick => {
+        if (!(tick.liquidityNet.isZero && tick.liquidityGross.isZero() && tick.tick === 0)) {
+          const priceInfo = TickUtils.getTickPriceDecimals({
+            mintDecimalsA: poolInfo.mintDecimalsA,
+            mintDecimalsB: poolInfo.mintDecimalsB,
+            tick: tick.tick,
+            baseIn: true,
+          })
+
+          dataInfoTick.push({
+            tick: priceInfo.tick.toString(),
+            price: priceInfo.price.toString(),
+            liquidityGross: tick.liquidityGross.toNumber(),
+            liquidityNet: tick.liquidityNet.toNumber(),
+          });
+        }
+      });
+    });
+    const chartData = dataInfoTick.sort((a, b) => Number(a.tick) - Number(b.tick));
+
+    return chartData.map(item => {
+      liquidityActive += item.liquidityNet;
+      return {
+        tick: item.tick,
+        price: item.price,
+        liquidity: liquidityActive
+      }
+    })
+  }
+
   public async getInfoTickArray({
     poolId,
     poolInfo,
@@ -596,8 +691,7 @@ export class ClmmClient {
         }
       });
     });
-
-    const chartData = dataInfoTick.sort((a, b) => new BN(a.tick).mul(new BN(b.tick)).toNumber());
+    const chartData = dataInfoTick.sort((a, b) => Number(a.tick) - Number(b.tick));
 
     return chartData.map(item => {
       liquidityActive += item.liquidityNet;
@@ -966,7 +1060,6 @@ export class ClmmClient {
 
     const amountA = new BN(new Decimal(res.amountA.amount.toString()).toFixed(0))
     const amountB = new BN(new Decimal(res.amountB.amount.toString()).toFixed(0))
-
 
     return {
       amountA,
