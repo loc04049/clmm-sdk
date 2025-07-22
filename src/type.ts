@@ -408,6 +408,7 @@ export interface AmmV3PoolInfo {
   currentPrice: Decimal;
   tickCurrent: number;
   tickArrayBitmap: BN[];
+  exBitmapInfo: TickArrayBitmapExtensionType
 }
 
 export interface QuoteParams {

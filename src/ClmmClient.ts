@@ -1,4 +1,4 @@
-import { getMultipleAccountsInfo, publicKey } from '@raydium-io/raydium-sdk-v2';
+import { getMultipleAccountsInfo } from '@raydium-io/raydium-sdk-v2';
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { AmmV3PoolInfo, ClmmClientConfig, ClmmKeys, CreateConcentratedPool, DecreaseLiquidity, GetAprPoolTickParameters, GetAprPositionParameters, IncreasePositionFromLiquidity, OpenPositionFromBase, PoolInfoConcentratedItem, QuoteParams } from "./type";
 import { AmmConfigLayout, ClmmPoolLayout, ClmmPositionLayout, PoolInfoLayout, PositionInfoLayout, TickArrayLayout } from "./layout";
@@ -16,6 +16,7 @@ import { PoolUtilsV1 } from "./utils/poolV1";
 import { TickArray, TickUtils } from "./utils/tick";
 import { PositionUtils } from "./utils/position";
 import { PoolUtils } from './utils/pool';
+import { TickQuery } from './utils/tickQuery';
 
 export class ClmmClient {
   connection: Connection;
@@ -654,59 +655,11 @@ export class ClmmClient {
     })
   }
 
-  public async getInfoTickArray({
-    poolId,
-    poolInfo,
-  }: {
-    poolId: PublicKey,
-    poolInfo: ClmmPoolLayout
-  }): Promise<{ tick: string; price: string; liquidity: number; }[]> {
-    const tickArrayCache = await getTickArrayCache({
-      poolId: poolId,
-      poolInfo,
-      connection: this.connection,
-      clmmProgramId: this.clmmProgramId,
-      coder: this.coder,
-    })
-
-    const dataInfoTick: { tick: string; price: string, liquidityGross: number, liquidityNet: number }[] = [];
-    let liquidityActive = 0;
-
-    Object.values(tickArrayCache).forEach(tickArray => {
-      tickArray.ticks.forEach(tick => {
-        if (!(tick.liquidityNet.isZero && tick.liquidityGross.isZero() && tick.tick === 0)) {
-          const priceInfo = TickUtils.getTickPriceDecimals({
-            mintDecimalsA: poolInfo.mintDecimalsA,
-            mintDecimalsB: poolInfo.mintDecimalsB,
-            tick: tick.tick,
-            baseIn: true,
-          })
-
-          dataInfoTick.push({
-            tick: priceInfo.tick.toString(),
-            price: priceInfo.price.toString(),
-            liquidityGross: tick.liquidityGross.toNumber(),
-            liquidityNet: tick.liquidityNet.toNumber(),
-          });
-        }
-      });
-    });
-    const chartData = dataInfoTick.sort((a, b) => Number(a.tick) - Number(b.tick));
-
-    return chartData.map(item => {
-      liquidityActive += item.liquidityNet;
-      return {
-        tick: item.tick,
-        price: item.price,
-        liquidity: liquidityActive
-      }
-
-    })
-  }
-
 
   public async getQuote(quoteParams: QuoteParams) {
     const { poolId, inputMint, swapMode, poolInfo, amount, slippage, priceLimit = new Decimal(0), ammConfig } = quoteParams
+
+    const getEpochInfo = await this.connection.getEpochInfo()
 
     const currentPrice = TickUtils.getTickPriceDecimals({
       mintDecimalsA: poolInfo.mintDecimalsA,
@@ -715,6 +668,13 @@ export class ClmmClient {
       baseIn: true,
     })
     const zeroForOne = inputMint.equals(poolInfo.mintA)
+
+    const pdaPdaExBitmap = getPdaExBitmapAccount(this.clmmProgramId, poolId).publicKey
+    const exBitData = await PoolUtils.fetchExBitmaps({
+      connection: this.connection,
+      exBitmapAddress: [pdaPdaExBitmap],
+      batchRequest: false,
+    });
 
     const poolInFoSwap: AmmV3PoolInfo = {
       id: poolId,
@@ -737,98 +697,62 @@ export class ClmmClient {
       tickCurrent: poolInfo.tickCurrent,
       tickArrayBitmap: poolInfo.tickArrayBitmap,
       observationId: poolInfo.observationId,
+      exBitmapInfo: exBitData[pdaPdaExBitmap.toString()]
     }
 
-    const tickArrayCache = await getTickArrayCache({
-      poolId: poolId,
-      poolInfo,
-      connection: this.connection,
-      clmmProgramId: this.clmmProgramId,
-      coder: this.coder,
-      zeroForOne
-    })
-    if (swapMode === 'ExactIn') {
-      try {
-        const { amountOut, minAmountOut, fee, priceImpact, executionPrice, currentPrice, remainingAccounts } = PoolUtilsV1.computeAmountOut({
-          poolInfo: poolInFoSwap,
-          tickArrayCache: tickArrayCache,
-          amountIn: amount,
-          baseMint: inputMint,
-          slippage,
-          priceLimit,
-        });
+    const tickArrayCache = await TickQuery.getTickArrays(
+      this.connection,
+      this.clmmProgramId,
+      poolId,
+      poolInfo.tickCurrent,
+      poolInfo.tickSpacing,
+      poolInfo.tickArrayBitmap,
+      poolInFoSwap.exBitmapInfo
+    )
 
-        return {
-          notEnoughLiquidity: false,
-          inAmount: amount,
-          outAmount: amountOut,
-          slippageAmount: minAmountOut,
-          executionPrice: executionPrice,
-          currentPrice: zeroForOne ? currentPrice : new Decimal(1).div(currentPrice),
-          feeAmount: fee,
-          priceLimit,
-          priceImpact,
-          remainingAccounts,
-          inputMint,
-        };
-      } catch (e) {
-        console.log("🚀 ~ ClmmClient ~ getQuote ~ e:", e)
-        return {
-          notEnoughLiquidity: true,
-          inAmount: amount,
-          outAmount: new BN(0),
-          slippageAmount: new BN(0),
-          executionPrice: new Decimal(0),
-          currentPrice: new Decimal(0),
-          feeAmount: new BN(0),
-          priceLimit,
-          priceImpact: new Decimal(0),
-          remainingAccounts: [],
-          inputMint
-        };
-      }
-    } else {
-      try {
-        const { amountIn, maxAmountIn, fee, priceImpact, executionPrice, currentPrice, remainingAccounts } = PoolUtilsV1.computeAmountIn({
-          poolInfo: poolInFoSwap,
-          tickArrayCache: tickArrayCache,
-          amountOut: amount,
-          baseMint: inputMint,
-          slippage,
-          priceLimit,
-        });
+    try {
+      const { amountOut, minAmountOut, fee, priceImpact, executionPrice, currentPrice: currentPriceCompute, remainingAccounts } = PoolUtils.computeAmountOut({
+        poolInfo: poolInFoSwap,
+        tickArrayCache: tickArrayCache,
+        baseMint: inputMint,
+        epochInfo: getEpochInfo,
+        amountIn: amount,
+        slippage,
+        priceLimit,
+        catchLiquidityInsufficient: true
+      });
 
-        return {
-          notEnoughLiquidity: false,
-          inAmount: amountIn,
-          outAmount: amount,
-          slippageAmount: maxAmountIn,
-          executionPrice: executionPrice,
-          currentPrice: zeroForOne ? currentPrice : new Decimal(1).div(currentPrice),
-          feeAmount: fee,
-          priceLimit,
-          priceImpact,
-          remainingAccounts,
-          inputMint,
-        };
-      } catch (error) {
-        console.log("🚀 ~ ClmmClient ~ getQuote ~ error:", error)
-        return {
-          notEnoughLiquidity: true,
-          inAmount: amount,
-          outAmount: new BN(0),
-          slippageAmount: new BN(0),
-          executionPrice: new Decimal(0),
-          currentPrice: new Decimal(0),
-          feeAmount: new BN(0),
-          priceLimit,
-          priceImpact: new Decimal(0),
-          remainingAccounts: [],
-          inputMint,
-        };
+      return {
+        notEnoughLiquidity: false,
+        inAmount: amount,
+        outAmount: amountOut.amount,
+        slippageAmount: minAmountOut.amount,
+        executionPrice: executionPrice,
+        currentPrice: currentPriceCompute,
+        feeAmount: fee,
+        priceLimit,
+        priceImpact: new Decimal(priceImpact.toFixed()),
+        remainingAccounts,
+        inputMint,
       }
 
+    } catch (e) {
+      return {
+        notEnoughLiquidity: true,
+        inAmount: amount,
+        outAmount: new BN(0),
+        slippageAmount: new BN(0),
+        executionPrice: new Decimal(0),
+        currentPrice: zeroForOne ? currentPrice.price : new Decimal(1).div(currentPrice.price),
+        feeAmount: new BN(0),
+        priceLimit,
+        priceImpact: new Decimal(0),
+        remainingAccounts: [],
+        inputMint
+      };
     }
+
+
   }
 
   public async getPositionFees({

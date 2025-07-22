@@ -1,8 +1,8 @@
 import { Connection, EpochInfo, PublicKey } from "@solana/web3.js";
-import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import BN from "bn.js";
 
 import {
+  AmmV3PoolInfo,
   AprInfoPool,
   AprKey,
   ClmmPoolInfo,
@@ -40,7 +40,7 @@ import get from "lodash/get";
 
 export class PoolUtils {
   public static getOutputAmountAndRemainAccounts(
-    poolInfo: ComputeClmmPoolInfo,
+    poolInfo: AmmV3PoolInfo,
     tickArrayCache: { [key: string]: TickArray },
     inputTokenMint: PublicKey,
     inputAmount: BN,
@@ -53,7 +53,8 @@ export class PoolUtils {
     executionPrice: BN;
     feeAmount: BN;
   } {
-    const zeroForOne = inputTokenMint.toBase58() === poolInfo.mintA.address;
+
+    const zeroForOne = inputTokenMint.equals(poolInfo.mintA.mint)
 
     const allNeededAccounts: PublicKey[] = [];
     const {
@@ -110,13 +111,13 @@ export class PoolUtils {
   }
 
   public static getInputAmountAndRemainAccounts(
-    poolInfo: ComputeClmmPoolInfo,
+    poolInfo: AmmV3PoolInfo,
     tickArrayCache: { [key: string]: TickArray },
     outputTokenMint: PublicKey,
     outputAmount: BN,
     sqrtPriceLimitX64?: BN,
   ): { expectedAmountIn: BN; remainingAccounts: PublicKey[]; executionPrice: BN; feeAmount: BN } {
-    const zeroForOne = outputTokenMint.toBase58() === poolInfo.mintB.address;
+    const zeroForOne = outputTokenMint.equals(poolInfo.mintB.mint)
 
     const allNeededAccounts: PublicKey[] = [];
     const {
@@ -163,7 +164,7 @@ export class PoolUtils {
   }
 
   public static getFirstInitializedTickArray(
-    poolInfo: ComputeClmmPoolInfo,
+    poolInfo: AmmV3PoolInfo,
     zeroForOne: boolean,
   ):
     | { isExist: true; startIndex: number; nextAccountMeta: PublicKey }
@@ -207,7 +208,7 @@ export class PoolUtils {
   }
 
   public static preInitializedTickArrayStartIndex(
-    poolInfo: ComputeClmmPoolInfo,
+    poolInfo: AmmV3PoolInfo,
     zeroForOne: boolean,
   ): { isExist: boolean; nextStartIndex: number } {
     const currentOffset = Math.floor(poolInfo.tickCurrent / TickQuery.tickCount(poolInfo.tickSpacing));
@@ -626,7 +627,7 @@ export class PoolUtils {
     priceLimit = new Decimal(0),
     catchLiquidityInsufficient = false,
   }: {
-    poolInfo: ComputeClmmPoolInfo;
+    poolInfo: AmmV3PoolInfo;
     tickArrayCache: { [key: string]: TickArray };
     baseMint: PublicKey;
 
@@ -638,7 +639,7 @@ export class PoolUtils {
     catchLiquidityInsufficient: boolean;
   }): ReturnTypeComputeAmountOut {
     let sqrtPriceLimitX64: BN;
-    const isBaseIn = baseMint.toBase58() === poolInfo.mintA.address;
+    const isBaseIn = baseMint.equals(poolInfo.mintA.mint)
     // const [baseFeeConfig, outFeeConfig] = isBaseIn
     //   ? [poolInfo.mintA.extensions.feeConfig, poolInfo.mintB.extensions.feeConfig]
     //   : [poolInfo.mintB.extensions.feeConfig, poolInfo.mintA.extensions.feeConfig];
@@ -702,112 +703,12 @@ export class PoolUtils {
       amountOut,
       minAmountOut,
       expirationTime: minExpirationTime(realAmountIn.expirationTime, amountOut.expirationTime),
-      currentPrice: poolInfo.currentPrice,
+      currentPrice: poolPrice,
       executionPrice,
       priceImpact,
       fee: feeAmount,
       remainingAccounts,
       executionPriceX64: _executionPriceX64,
-    };
-  }
-
-  static computeAmountOutFormat({
-    poolInfo,
-    tickArrayCache,
-    amountIn,
-    tokenOut: _tokenOut,
-    slippage,
-    epochInfo,
-    catchLiquidityInsufficient = false,
-  }: {
-    poolInfo: ComputeClmmPoolInfo;
-    tickArrayCache: { [key: string]: TickArray };
-    amountIn: BN;
-    tokenOut: TokenInfo;
-    slippage: number;
-    epochInfo: EpochInfo;
-    catchLiquidityInsufficient?: boolean;
-  }): ReturnTypeComputeAmountOutFormat {
-    const baseIn = _tokenOut.address === poolInfo.mintB.address;
-    const [inputMint, outMint] = baseIn ? [poolInfo.mintA, poolInfo.mintB] : [poolInfo.mintB, poolInfo.mintA];
-    const [baseToken, outToken] = [
-      new Token({
-        ...inputMint,
-        mint: inputMint.address,
-        isToken2022: inputMint.programId === TOKEN_2022_PROGRAM_ID.toBase58(),
-      }),
-      new Token({
-        ...outMint,
-        mint: outMint.address,
-        isToken2022: outMint.programId === TOKEN_2022_PROGRAM_ID.toBase58(),
-      }),
-    ];
-
-    const {
-      allTrade,
-      realAmountIn: _realAmountIn,
-      amountOut: _amountOut,
-      minAmountOut: _minAmountOut,
-      expirationTime,
-      currentPrice,
-      executionPrice,
-      priceImpact,
-      fee,
-      remainingAccounts,
-      executionPriceX64,
-    } = PoolUtils.computeAmountOut({
-      poolInfo,
-      tickArrayCache,
-      baseMint: new PublicKey(inputMint.address),
-      amountIn,
-      slippage,
-      epochInfo,
-      catchLiquidityInsufficient,
-    });
-
-    const realAmountIn = {
-      ..._realAmountIn,
-      amount: new TokenAmount(baseToken, _realAmountIn.amount),
-      fee: _realAmountIn.fee === undefined ? undefined : new TokenAmount(baseToken, _realAmountIn.fee),
-    };
-
-    const amountOut = {
-      ..._amountOut,
-      amount: new TokenAmount(outToken, _amountOut.amount),
-      fee: _amountOut.fee === undefined ? undefined : new TokenAmount(outToken, _amountOut.fee),
-    };
-    const minAmountOut = {
-      ..._minAmountOut,
-      amount: new TokenAmount(outToken, _minAmountOut.amount),
-      fee: _minAmountOut.fee === undefined ? undefined : new TokenAmount(outToken, _minAmountOut.fee),
-    };
-
-    const _currentPrice = new Price({
-      baseToken,
-      denominator: new BN(10).pow(new BN(20 + baseToken.decimals)),
-      quoteToken: outToken,
-      numerator: currentPrice.mul(new Decimal(10 ** (20 + outToken.decimals))).toFixed(0),
-    });
-    const _executionPrice = new Price({
-      baseToken,
-      denominator: new BN(10).pow(new BN(20 + baseToken.decimals)),
-      quoteToken: outToken,
-      numerator: executionPrice.mul(new Decimal(10 ** (20 + outToken.decimals))).toFixed(0),
-    });
-    const _fee = new TokenAmount(baseToken, fee);
-
-    return {
-      allTrade,
-      realAmountIn,
-      amountOut,
-      minAmountOut,
-      expirationTime,
-      currentPrice: _currentPrice,
-      executionPrice: _executionPrice,
-      priceImpact,
-      fee: _fee,
-      remainingAccounts,
-      executionPriceX64,
     };
   }
 
@@ -820,7 +721,7 @@ export class PoolUtils {
     slippage,
     priceLimit = new Decimal(0),
   }: {
-    poolInfo: ComputeClmmPoolInfo;
+    poolInfo: AmmV3PoolInfo;
     tickArrayCache: { [key: string]: TickArray };
     baseMint: PublicKey;
 
@@ -830,15 +731,15 @@ export class PoolUtils {
     slippage: number;
     priceLimit?: Decimal;
   }): ReturnTypeComputeAmountOutBaseOut {
-    const isBaseIn = baseMint.toBase58() === poolInfo.mintA.address;
+    const isBaseIn = baseMint.equals(poolInfo.mintA.mint)
     // const feeConfigs = {
     //   [poolInfo.mintA.address]: poolInfo.mintA.extensions.feeConfig,
     //   [poolInfo.mintB.address]: poolInfo.mintB.extensions.feeConfig,
     // };
 
     const feeConfigs = {
-      [poolInfo.mintA.address]: undefined,
-      [poolInfo.mintB.address]: undefined,
+      [poolInfo.mintA.mint.toString()]: undefined,
+      [poolInfo.mintB.mint.toString()]: undefined,
     };
 
     let sqrtPriceLimitX64: BN;
@@ -867,7 +768,7 @@ export class PoolUtils {
       sqrtPriceLimitX64,
     );
 
-    const inMint = isBaseIn ? poolInfo.mintB.address : poolInfo.mintA.address;
+    const inMint = isBaseIn ? poolInfo.mintB.mint.toString() : poolInfo.mintA.mint.toString();
 
     const amountIn = getTransferAmountFeeV2(_expectedAmountIn, feeConfigs[inMint], epochInfo, false);
     // const amountIn = getTransferAmountFee(
