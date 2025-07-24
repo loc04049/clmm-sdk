@@ -173,12 +173,12 @@ export class TickUtils {
     exTickArrayBitmap: TickArrayBitmapExtensionType,
     tickSpacing: number,
   ): number[] {
-    // find from offset 0 to 1024
+    // (-7680 --> 7680)
     return TickUtils.searchHightBitFromStart(
       tickArrayBitmap,
       exTickArrayBitmap,
       -7680,
-      TICK_ARRAY_BITMAP_SIZE,
+      15360,
       tickSpacing,
     );
   }
